@@ -1,0 +1,12 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "compiler-version": [
+      "error",
+      "^0.6.8"
+    ],
+    "private-vars-leading-underscore": "error",
+    "avoid-low-level-calls": "off",
+    "not-rely-on-time": "off"
+  }
+}
