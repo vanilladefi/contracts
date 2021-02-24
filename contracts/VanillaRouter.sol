@@ -313,7 +313,7 @@ contract VanillaRouter is UniswapTrader {
         )
     {
         PriceData storage prices = tokenPriceData[owner][token];
-        require(prices.tokenSum == 0, _ERROR_NO_TOKEN_OWNERSHIP);
+        require(prices.tokenSum > 0, _ERROR_NO_TOKEN_OWNERSHIP);
         profitablePrice = numTokensSold.mul(prices.ethSum).div(prices.tokenSum);
         avgBlock = prices.weightedBlockSum.div(prices.tokenSum);
         if (numEth > profitablePrice) {
@@ -384,7 +384,7 @@ contract VanillaRouter is UniswapTrader {
             L     = WETH reserve limit for any traded token = `_reserveLimit`
             W     = internally tracked WETH reserve size for when selling a token = `wethReserve`
             V     = value protection coefficient
-                  = 1-max((P + L)/W, 1) (= 0 if P+L > W)
+                  = 1-min((P + L)/W, 1) (= 0 if P+L > W)
             R     = minted rewards
                   = P*V*H
                   = if   (P = 0 || P + L > W || Bmax = Bavg || BMax = Bmin)

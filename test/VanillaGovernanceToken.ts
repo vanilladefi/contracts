@@ -1,29 +1,32 @@
-import { ethers } from "hardhat"
-import { BigNumber, Signer } from "ethers"
-import { expect } from "chai"
+import { ethers, waffle } from "hardhat"
+import { BigNumber, Signer, Wallet } from "ethers"
+import { expect, use } from "chai"
+import { waffleChai } from "@ethereum-waffle/chai"
+import VanillaGovernanceToken from "../artifacts/contracts/VanillaGovernanceToken.sol/VanillaGovernanceToken.json"
+
+use(waffleChai)
+const { provider, deployContract, createFixtureLoader } = waffle
+const loadFixture = createFixtureLoader(provider.getWallets(), provider)
 
 describe("Governance Token", () => {
-  let owner: Signer
-  let ownerAddress: string
-  let signers: Signer[]
+  const ACCESS_DENIED_CODE = "c1"
+  async function fixture ([owner, user]: Wallet[]) {
+    const governanceToken = await deployContract(owner, VanillaGovernanceToken)
+    return { governanceToken, owner, user }
+  }
 
-  beforeEach(async () => {
-    signers = await ethers.getSigners()
-    owner = signers[0]
-    ownerAddress = await owner.getAddress()
+  it("tokens can be minted by the owner", async () => {
+    const { governanceToken: token, owner, user } = await loadFixture(fixture)
+
+    const expected = BigNumber.from(250)
+    await expect(token.mint(user.address, expected)).not.to.be.revertedWith(ACCESS_DENIED_CODE)
+    const reward = await token.connect(user.address).balanceOf(user.address)
+
+    expect(reward).to.equal(expected)
   })
 
-  it("Should be able to mint governance tokens using the minting curve", async () => {
-    const GovernanceToken = await ethers.getContractFactory("VanillaGovernanceToken")
-
-    const governanceToken = await GovernanceToken.deploy()
-    await governanceToken.deployed()
-
-    const testReward = BigNumber.from(250)
-
-    await governanceToken.mint(ownerAddress, testReward)
-
-    let reward:BigNumber = await governanceToken.balanceOf(ownerAddress)
-    expect(reward.toHexString()).to.equal(testReward.toHexString())
+  it("tokens cannot be minted by others", async () => {
+    const { governanceToken, user } = await loadFixture(fixture)
+    await expect(governanceToken.connect(user).mint(user.address, BigNumber.from(100))).to.be.revertedWith(ACCESS_DENIED_CODE)
   })
 })

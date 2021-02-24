@@ -62,7 +62,7 @@ The `VanillaGovernanceToken` uses 12 decimals for displaying VNL amounts in a mo
 
 With constant product markets like Uniswap, the price manipulation of a single token is always possible, however it has [a cost relative to the liquidity pool size](https://arxiv.org/abs/1911.03380). Based on this dynamic, the _Value Protection Coefficient_ is used to protect the reward mechanism and the value of the governance tokens against price manipulation and malicious tokens.
 
-The coefficient formula is `V = 1-max((P + L)/W, 1)` where
+The coefficient formula is `V = 1-min((P + L)/W, 1)` where
 
 - `P` is the absolute [profit](#profit) in Ether.
 - `L` is the immutable WETH reserve limit that is set when the VanillaRouter is deployed. This means that rewards are never minted when selling a token whose WETH liquidity reserves are lower than `L`.
