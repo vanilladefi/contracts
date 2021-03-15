@@ -31,14 +31,14 @@ describe("UniswapRouter", async () => {
       let tx = await call
       return (await tx.wait()).gasUsed
     }
-    expect(await gasUsage(router.deployTransaction)).to.equal(2626324)
+    expect(await gasUsage(router.deployTransaction)).to.equal(2664951)
 
     router = router.connect(trader)
     expect(await gasUsage(router.depositAndBuy(tokenA.address, LIMIT_NOT_USED, MaxUint256, { value: tokenAmount(5) })))
       .to.equal(263035)
 
     expect(await gasUsage(router.sellAndWithdraw(tokenA.address, 1000, LIMIT_NOT_USED, MaxUint256)))
-      .to.equal(154598)
+      .to.equal(154606)
 
     let ethAmount = tokenAmount(5)
     WETH = WETH.connect(trader)
@@ -49,7 +49,7 @@ describe("UniswapRouter", async () => {
       .to.equal(113752)
 
     expect(await gasUsage(router.sell(tokenA.address, 493, LIMIT_NOT_USED, MaxUint256)))
-      .to.equal(198355)
+      .to.equal(198363)
   })
 
   it("Buying and selling with Ether works", async () => {
@@ -162,14 +162,16 @@ describe("UniswapRouter", async () => {
 
       WETH = WETH.connect(trader)
       router = router.connect(trader)
-      await WETH.deposit({ value: ethAmount })
+      // Verify that trader's WETH balance is not ignored in limit checking (PVE-001)
+      await WETH.deposit({ value: ethAmount.add(tokenAmount(1000)) })
       await WETH.approve(router.address, ethAmount)
       let prices = uniswapPrices(tokenL, wethL)
       let expectedTokens = prices.buy(ethAmount)
       await router.buy(tokenA.address, ethAmount, expectedTokens, MaxUint256)
 
       let expectedWETH = prices.sell(expectedTokens)
-      await expect(router.sell(tokenA.address, expectedTokens, expectedWETH.add(1000), MaxUint256)).to.be.revertedWith("a1")
+      let limitTooHigh = expectedWETH.add(tokenAmount(1))
+      await expect(router.sell(tokenA.address, expectedTokens, limitTooHigh, MaxUint256)).to.be.revertedWith("a1")
     })
 
     it("Selling more than owned fails", async () => {
