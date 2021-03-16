@@ -26,7 +26,7 @@ export const deployTokens = async (wallet: Wallet) => {
   return { tokenA, tokenB, WETH }
 }
 
-const createLiquidityETH = async (tokenOwner: Signer, router: Contract, token: Contract, weth: Contract, overrides = { gasLimit: 9999999 }) => {
+export const createLiquidityETH = async (tokenOwner: Signer, router: Contract, token: Contract, weth: Contract, overrides = { gasLimit: 9999999 }) => {
   let tokenLiquidity = tokenAmount(500)
   let wethLiquidity = tokenAmount(500)
   await token.connect(tokenOwner).approve(router.address, MaxUint256)
@@ -40,13 +40,13 @@ const createLiquidityETH = async (tokenOwner: Signer, router: Contract, token: C
   }
 }
 
-const deployUniswap = async (uniswapOwner: Signer, WETH: Contract, overrides = {}) => {
+export const deployUniswap = async (uniswapOwner: Signer, WETH: Contract, overrides = {}) => {
   const factory = await deployContract(uniswapOwner, UniswapV2Factory, [await uniswapOwner.getAddress()])
   const router = await deployContract(uniswapOwner, UniswapV2Router02, [factory.address, WETH.address], overrides)
   return { factory, router }
 }
 
-const createPair = async (uniswapOwner: Signer, factory: Contract, tokenA: Contract, tokenB: Contract) => {
+export const createPair = async (uniswapOwner: Signer, factory: Contract, tokenA: Contract, tokenB: Contract) => {
   await factory.createPair(tokenA.address, tokenB.address)
   const pairAddress = await factory.getPair(tokenA.address, tokenB.address)
   const pair = new ethers.Contract(pairAddress, JSON.stringify(IUniswapV2Pair.abi), provider).connect(uniswapOwner)
@@ -54,7 +54,7 @@ const createPair = async (uniswapOwner: Signer, factory: Contract, tokenA: Contr
   return { pair }
 }
 
-const setupUniswap = async (uniswapOwner: Signer, weth: Contract, targetAsset: Contract) => {
+export const setupUniswap = async (uniswapOwner: Signer, weth: Contract, targetAsset: Contract) => {
   let { factory, router } = await deployUniswap(uniswapOwner, weth)
 
   let { pair } = await createPair(uniswapOwner, factory, weth, targetAsset)

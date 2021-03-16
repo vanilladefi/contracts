@@ -8,7 +8,7 @@ import "../contracts/VanillaRouter.sol";
 // run `npm run compile:sol` to compile the contracts in this file
 
 contract VanillaRouterDelegate is VanillaRouter {
-    constructor(address uniswapRouter) public VanillaRouter(uniswapRouter, 1) {
+    constructor(address uniswapRouter, address[] memory allowedTokens) public VanillaRouter(uniswapRouter, 1, allowedTokens) {
 
     }
 
