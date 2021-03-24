@@ -182,8 +182,7 @@ contract UniswapTrader {
         (address pairAddress, bool tokenFirst) =
             _pairInfo(_uniswapFactoryAddr, token_, _wethAddr);
         IUniswapV2Pair pair = IUniswapV2Pair(pairAddress);
-        address tokenCustody = address(this);
-        uint256 balance = IERC20(_wethAddr).balanceOf(tokenCustody);
+        uint256 balance = IERC20(_wethAddr).balanceOf(tokenReceiver_);
 
         // Use TransferHelper because we have no idea here how token.transfer() has been implemented
         TransferHelper.safeTransfer(token_, pairAddress, amount_);
@@ -206,7 +205,7 @@ contract UniswapTrader {
             );
             reserve = _updateReservesOnSell(token_, wethReserve);
         }
-        // finally check how the custody balance has changed after swap
+        // finally check how the receivers balance has changed after swap
         numEth = IERC20(_wethAddr).balanceOf(tokenReceiver_) - balance;
         // revert if the price diff between trade-time and execution-time was too large
         require(numEth >= eth_, _ERROR_SLIPPAGE_LIMIT_EXCEEDED);
