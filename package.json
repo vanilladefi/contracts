@@ -4,11 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npx hardhat compile && npx hardhat test",
+    "test": "npm run compile:sol && npx hardhat test",
     "format:js": "eslint . --fix",
     "format:sol": "prettier --write contracts/",
     "lint:js": "eslint .",
-    "lint:sol": "prettier --check contracts/ && solhint --max-warnings 0 'contracts/**/*.sol'"
+    "lint:sol": "prettier --check contracts/ && solhint --max-warnings 0 'contracts/**/*.sol'",
+    "compile:sol": "cp test/contracts/TestUtils.sol contracts/ && npx hardhat compile && cp artifacts/contracts/TestUtils.sol/VanillaRouterDelegate.json test/contracts/ && rm contracts/TestUtils.sol"
   },
   "author": "",
   "license": "ISC",
@@ -39,11 +40,12 @@
     "solc": "^0.7.4",
     "solhint": "^3.2.2",
     "ts-node": "^9.0.0",
-    "typescript": "^4.0.3"
+    "typescript": "^4.0.3",
+    "@ethereum-waffle/chai": "^3.2.2"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^3.3.0",
-    "@uniswap/v2-core": "^1.0.1",
-    "@uniswap/v2-periphery": "^1.1.0-beta.0"
+    "@openzeppelin/contracts": "3.3.0",
+    "@uniswap/v2-core": "1.0.1",
+    "@uniswap/v2-periphery": "1.1.0-beta.0"
   }
 }

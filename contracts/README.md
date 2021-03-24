@@ -46,6 +46,12 @@ Using this formula, Vanilla can keep track of average prices in a gas-efficient 
 
 Profit is calculated whenever user sells tokens. Knowing the selling price and the average purchasing price (`ethSum/tokenSum`), the profit is calculated as `receivedEth - expectedEth` where `expectedEth = ethSum*tokensSold/tokenSum`. Basically, if the user received more Ether than was expected, a profit was made.
 
+### Safelist
+
+Vanilla uses a _safelist_ of tokens to filter which profitable trades are eligible for VNL rewards. This is a safety measure to protect the value of `VanillaGovernanceToken` as a malicious ERC-20 can potentially be used to fully control the Uniswap trading and therefore the VNL distribution. The safelisting mechanism only affects the rewards - the non-safelisted tokens can be purchased and sold with Vanilla API, along with profit calculation support.
+
+The safelist is defined as a constructor parameter for `VanillaRouter`. Internally, the safelist checks are implemented with `UniswapRouter.wethReserves` mapping - the internal WETH reserve state is tracked only for safelisted tokens, otherwise it's always 0.
+
 ### Tokens
 
 User is rewarded with a number of `VanillaGovernanceToken`s using a formula `R = PVH` where :
@@ -62,7 +68,7 @@ The `VanillaGovernanceToken` uses 12 decimals for displaying VNL amounts in a mo
 
 With constant product markets like Uniswap, the price manipulation of a single token is always possible, however it has [a cost relative to the liquidity pool size](https://arxiv.org/abs/1911.03380). Based on this dynamic, the _Value Protection Coefficient_ is used to protect the reward mechanism and the value of the governance tokens against price manipulation and malicious tokens.
 
-The coefficient formula is `V = 1-max((P + L)/W, 1)` where
+The coefficient formula is `V = 1-min((P + L)/W, 1)` where
 
 - `P` is the absolute [profit](#profit) in Ether.
 - `L` is the immutable WETH reserve limit that is set when the VanillaRouter is deployed. This means that rewards are never minted when selling a token whose WETH liquidity reserves are lower than `L`.
@@ -102,7 +108,9 @@ Similarly to Average Price of Purchase, when selling tokens the algorithm adjust
 
 ## API
 
-### VanillaRouter.buy()
+### State-changing functions
+
+#### VanillaRouter.buy()
 
 The tokens are bought using this function. The signature is as follows:
 
@@ -123,7 +131,7 @@ This function behaves similarly to [buy()](#vanillarouterbuy), but is payable an
 
 `depositAndBuy()` is an easier way of buying if the trader don't possess WETH tokens beforehand.
 
-### VanillaRouter.sell()
+#### VanillaRouter.sell()
 
 The tokens are sold using this function. The signature is as follows:
 
@@ -144,23 +152,33 @@ This function behaves similarly to [sell()](#vanillaroutersell) with equal funct
 
 `VanillaRouter.sellAndWithdraw()` is the easier way of selling tokens if the trader just needs the unwrapped Ether.
 
-### VanillaRouter.epoch()
+### Read-only functions
 
-Getter for `epoch`. Returns the `block.number` when the VanillaRouter was deployed.
+#### VanillaRouter.epoch()
 
-### VanillaRouter.vnlContract()
+Getter for `VanillaRouter.epoch`. Returns the `block.number` when the VanillaRouter was deployed.
 
-Getter for `vnlContract`. Returns the address of the VanillaGovernanceToken that VanillaRouter owns.
+#### VanillaRouter.vnlContract()
 
-### VanillaRouter.wethReserves(address token)
+Getter for `VanillaRouter.vnlContract`. Returns the address of the VanillaGovernanceToken that VanillaRouter owns.
 
-Getter function for `UniswapRouter.wethReserves`. Returns the internally tracked WETH reserves for given token.
+#### UniswapRouter.wethReserves(address token)
 
-### VanillaRouter.tokenPriceData(address owner, address token)
+Getter function for `UniswapRouter.wethReserves[token]`. Returns either:
+
+- 0 for non-safelisted token
+- [`VanillaRouter.reserveLimit()`](#vanillarouterreservelimit) for safelisted but untraded token, or
+- the internally tracked WETH reserve value for safelisted and traded token
+
+#### UniswapRouter.isTokenRewarded(address token)
+
+Returns true if token was included in the [safelist](#safelist).
+
+#### VanillaRouter.tokenPriceData(address owner, address token)
 
 Getter function for `tokenPriceData[owner][token]`. Returns the unwrapped `PriceData` struct.
 
-### VanillaRouter.reserveLimit()
+#### VanillaRouter.reserveLimit()
 
 Getter for `reserveLimit`. Returns the WETH reserve limit used in [value protection algorithm](#value-protection-coefficient).
 

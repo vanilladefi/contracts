@@ -22,6 +22,7 @@ contract VanillaRouter is UniswapTrader {
     string private constant _ERROR_TOO_MANY_TRADES_PER_BLOCK = "b3";
     string private constant _ERROR_NO_TOKEN_OWNERSHIP = "b4";
     string private constant _ERROR_RESERVELIMIT_TOO_LOW = "b5";
+    string private constant _ERROR_NO_SAFE_TOKENS = "b6";
 
     uint256 public immutable epoch;
     VanillaGovernanceToken public immutable vnlContract;
@@ -81,14 +82,17 @@ contract VanillaRouter is UniswapTrader {
         @dev initializes the token contract for safe reference and sets the epoch for reward calculations
         @param uniswapRouter The address of UniswapRouter contract
         @param limit The minimum WETH reserve for a token to be eligible in profit mining
+        @param safeList The list of ERC-20 addresses that are considered "safe", and will be eligible for rewards
     */
-    constructor(address uniswapRouter, uint128 limit)
-        public
-        UniswapTrader(uniswapRouter)
-    {
+    constructor(
+        address uniswapRouter,
+        uint128 limit,
+        address[] memory safeList
+    ) public UniswapTrader(uniswapRouter, limit, safeList) {
         vnlContract = new VanillaGovernanceToken();
         epoch = block.number;
         require(limit > 0, _ERROR_RESERVELIMIT_TOO_LOW);
+        require(safeList.length > 0, _ERROR_NO_SAFE_TOKENS);
         reserveLimit = limit;
     }
 
@@ -261,9 +265,10 @@ contract VanillaRouter is UniswapTrader {
         );
         prices.tokenSum = newTokenSum;
 
-        // calculate the reward, and mint tokens
-        uint256 reward =
-            _calculateReward(
+        uint256 reward = 0;
+        if (isTokenRewarded(token)) {
+            // calculate the reward, and mint tokens
+            reward = _calculateReward(
                 epoch,
                 avgBlock,
                 block.number,
@@ -271,8 +276,9 @@ contract VanillaRouter is UniswapTrader {
                 reserve,
                 reserveLimit
             );
-        if (reward > 0) {
-            vnlContract.mint(msg.sender, reward);
+            if (reward > 0) {
+                vnlContract.mint(msg.sender, reward);
+            }
         }
 
         emit TokensSold(
@@ -313,7 +319,7 @@ contract VanillaRouter is UniswapTrader {
         )
     {
         PriceData storage prices = tokenPriceData[owner][token];
-        require(prices.tokenSum == 0, _ERROR_NO_TOKEN_OWNERSHIP);
+        require(prices.tokenSum > 0, _ERROR_NO_TOKEN_OWNERSHIP);
         profitablePrice = numTokensSold.mul(prices.ethSum).div(prices.tokenSum);
         avgBlock = prices.weightedBlockSum.div(prices.tokenSum);
         if (numEth > profitablePrice) {
@@ -384,7 +390,7 @@ contract VanillaRouter is UniswapTrader {
             L     = WETH reserve limit for any traded token = `_reserveLimit`
             W     = internally tracked WETH reserve size for when selling a token = `wethReserve`
             V     = value protection coefficient
-                  = 1-max((P + L)/W, 1) (= 0 if P+L > W)
+                  = 1-min((P + L)/W, 1) (= 0 if P+L > W)
             R     = minted rewards
                   = P*V*H
                   = if   (P = 0 || P + L > W || Bmax = Bavg || BMax = Bmin)
