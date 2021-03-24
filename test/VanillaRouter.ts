@@ -1,27 +1,68 @@
 import { ethers, waffle } from "hardhat"
 import { expect } from "chai"
 import { Contract, Wallet, BigNumber, constants, Signer } from "ethers"
-import { deployTokens, setupUniswapRouter, tokenAmount, uniswapPrices } from "./UniswapSetup"
+import {
+  createLiquidityETH, createPair,
+  deployTokens, deployUniswap, Erc20ish,
+  setupUniswap,
+  setupUniswapRouter,
+  tokenAmount,
+  uniswapPrices,
+} from "./UniswapSetup"
 
 import VanillaRouter from "../artifacts/contracts/VanillaRouter.sol/VanillaRouter.json"
 import VanillaGovernanceToken from "../artifacts/contracts/VanillaGovernanceToken.sol/VanillaGovernanceToken.json"
 import VanillaRouterDelegate from "./contracts/VanillaRouterDelegate.json"
+import ERC20 from "@uniswap/v2-periphery/build/ERC20.json"
 import { assert, asyncProperty, bigUintN, constant, integer, nat, pre, property, tuple } from "fast-check"
 
 const { MaxUint256 } = constants
 const { provider, deployContract, createFixtureLoader } = waffle
-const loadFixture = createFixtureLoader(provider.getWallets(), provider)
+
+type VanillaContractSetup = {
+  router: Contract;
+  trader2: Wallet;
+  VNL: Contract;
+  tokenA: Contract;
+  tokenB: Contract;
+  trader: Wallet;
+  liqAW: Erc20ish;
+  WETH: Contract;
+  testRouter: Contract;
+  liqBW: Erc20ish;
+  liqB: Erc20ish;
+  liqA: Erc20ish;
+  uniswapRouter: Contract
+}
+type Fixture<T> = (wallets: Wallet[], provider: any) => Promise<T>
+
+const loader = createFixtureLoader(provider.getWallets(), provider)
+const loadFixture = async (fixture: Fixture<VanillaContractSetup>) => {
+  let snapshot: VanillaContractSetup = await loader(fixture)
+  return {
+    ...snapshot,
+    pairA: uniswapPrices(snapshot.liqAW, snapshot.liqA),
+    pairB: uniswapPrices(snapshot.liqBW, snapshot.liqB),
+  }
+}
 const LIMIT_NOT_USED = 1
 
 describe("UniswapRouter", async () => {
-  async function fixture ([vanillaOwner, ourUniswap, tokenDeployer, trader, trader2]: Wallet[]) {
-    let { tokenA, WETH } = await deployTokens(tokenDeployer)
-    let { router: uniswapRouter, tokenLiquidity, wethLiquidity } = await setupUniswapRouter(vanillaOwner, ourUniswap, tokenA, WETH)
-    let router = await deployContract(vanillaOwner, VanillaRouter, [uniswapRouter.address, tokenAmount(100)])
+  async function fixture ([vanillaOwner, ourUniswap, tokenDeployer, trader, trader2]: Wallet[]): Promise<VanillaContractSetup> {
+    let { tokenA, tokenB, WETH } = await deployTokens(tokenDeployer)
+
+    let { factory, router: uniswapRouter } = await deployUniswap(ourUniswap, WETH)
+    await createPair(ourUniswap, factory, WETH, tokenA)
+    let { tokenLiquidity: liqA, wethLiquidity: liqAW } = await createLiquidityETH(tokenA.signer, uniswapRouter, tokenA, WETH)
+
+    await createPair(ourUniswap, factory, WETH, tokenB)
+    let { tokenLiquidity: liqB, wethLiquidity: liqBW } = await createLiquidityETH(tokenB.signer, uniswapRouter, tokenB, WETH)
+
+    let router = await deployContract(vanillaOwner, VanillaRouter, [uniswapRouter.address, tokenAmount(100), [tokenA.address]])
     let VNL = new Contract(await router.vnlContract(), VanillaGovernanceToken.abi, provider)
-    let testRouter = await deployContract(vanillaOwner, VanillaRouterDelegate, [uniswapRouter.address])
+    let testRouter = await deployContract(vanillaOwner, VanillaRouterDelegate, [uniswapRouter.address, [tokenA.address]])
     // await logGasUsage("Router-deploy", router.deployTransaction)
-    return { router, tokenA, trader, trader2, WETH, testRouter, tokenL: tokenLiquidity, wethL: wethLiquidity, VNL }
+    return { router, tokenA, tokenB, trader, trader2, WETH, testRouter, liqA, liqAW, liqB, liqBW, VNL, uniswapRouter }
   }
 
   it("Gas cost checks", async () => {
@@ -31,14 +72,14 @@ describe("UniswapRouter", async () => {
       let tx = await call
       return (await tx.wait()).gasUsed
     }
-    expect(await gasUsage(router.deployTransaction)).to.equal(2664951)
+    expect(await gasUsage(router.deployTransaction)).to.equal(2735722)
 
     router = router.connect(trader)
     expect(await gasUsage(router.depositAndBuy(tokenA.address, LIMIT_NOT_USED, MaxUint256, { value: tokenAmount(5) })))
-      .to.equal(263035)
+      .to.equal(248092)
 
     expect(await gasUsage(router.sellAndWithdraw(tokenA.address, 1000, LIMIT_NOT_USED, MaxUint256)))
-      .to.equal(154606)
+      .to.equal(155610)
 
     let ethAmount = tokenAmount(5)
     WETH = WETH.connect(trader)
@@ -46,20 +87,19 @@ describe("UniswapRouter", async () => {
     await WETH.approve(router.address, ethAmount)
 
     expect(await gasUsage(router.buy(tokenA.address, ethAmount, LIMIT_NOT_USED, MaxUint256)))
-      .to.equal(113752)
+      .to.equal(113787)
 
     expect(await gasUsage(router.sell(tokenA.address, 493, LIMIT_NOT_USED, MaxUint256)))
-      .to.equal(198363)
+      .to.equal(199367)
   })
 
   it("Buying and selling with Ether works", async () => {
-    let { router, trader, tokenA, WETH, tokenL, wethL } = await loadFixture(fixture)
+    let { router, trader, tokenA, pairA } = await loadFixture(fixture)
 
     let reserveFromUniswapSetup = tokenAmount(500)
     router = router.connect(trader)
     let eth = tokenAmount(5)
-    let prices = uniswapPrices(wethL, tokenL)
-    let expectedTokens = prices.buy(eth)
+    let expectedTokens = pairA.buy(eth)
     let balanceBeforeDeposit = await trader.getBalance()
     expect(expectedTokens).to.equal(tokenAmount("493.5790171985306494"))
     let txrq = router.depositAndBuy(tokenA.address, LIMIT_NOT_USED, MaxUint256, { value: eth })
@@ -73,7 +113,7 @@ describe("UniswapRouter", async () => {
     expect(balanceBeforeDeposit.sub(balanceAfterDeposit).sub(txCost)).to.equal(BigNumber.from(eth))
     expect(await tokenA.balanceOf(router.address)).to.equal(expectedTokens)
 
-    let expectedETH = prices.sell(expectedTokens)
+    let expectedETH = pairA.sell(expectedTokens)
     expect(expectedETH).to.equal(tokenAmount("497.0339824810796450"))
     let balanceBeforeWithdraw = await trader.getBalance()
     txrq = router.sellAndWithdraw(tokenA.address, expectedTokens, LIMIT_NOT_USED, MaxUint256)
@@ -89,11 +129,10 @@ describe("UniswapRouter", async () => {
   })
 
   it("Buying and selling with WETH works", async () => {
-    let { router, trader, tokenA, WETH, wethL, tokenL } = await loadFixture(fixture)
+    let { router, trader, tokenA, WETH, pairA } = await loadFixture(fixture)
 
     let ethAmount = tokenAmount(5)
     let reserveFromUniswapSetup = tokenAmount(500)
-    let prices = uniswapPrices(wethL, tokenL)
     router = router.connect(trader)
 
     WETH = WETH.connect(trader)
@@ -102,7 +141,7 @@ describe("UniswapRouter", async () => {
     await WETH.approve(router.address, ethAmount)
     expect(await WETH.balanceOf(trader.address)).to.equal(ethAmount)
 
-    let expectedTokens = prices.buy(ethAmount)
+    let expectedTokens = pairA.buy(ethAmount)
     expect(expectedTokens).to.equal(tokenAmount("493.5790171985306494"))
     await expect(router.buy(tokenA.address, ethAmount, LIMIT_NOT_USED, MaxUint256))
       .to.emit(router, "TokensPurchased")
@@ -110,7 +149,7 @@ describe("UniswapRouter", async () => {
     expect(await WETH.balanceOf(trader.address)).to.equal(0)
     expect(await tokenA.balanceOf(router.address)).to.equal(expectedTokens)
 
-    let expectedWETH = prices.sell(expectedTokens)
+    let expectedWETH = pairA.sell(expectedTokens)
     expect(expectedWETH).to.equal(tokenAmount("497.0339824810796450"))
     await expect(router.sell(tokenA.address, expectedTokens, LIMIT_NOT_USED, MaxUint256))
       .to.emit(router, "TokensSold")
@@ -138,14 +177,14 @@ describe("UniswapRouter", async () => {
     })
 
     it("Buying with too high limit reverts", async () => {
-      let { router, trader, tokenA, WETH, tokenL, wethL } = await loadFixture(fixture)
+      let { router, trader, tokenA, WETH, pairA } = await loadFixture(fixture)
 
       let ethAmount = tokenAmount(5)
 
       WETH = WETH.connect(trader)
       await WETH.deposit({ value: ethAmount })
       await WETH.approve(router.address, ethAmount)
-      let expectedTokens = uniswapPrices(tokenL, wethL).buy(ethAmount)
+      let expectedTokens = pairA.buy(ethAmount)
       await expect(router.connect(trader).buy(tokenA.address, ethAmount, expectedTokens.add(1000), MaxUint256)).to.be.revertedWith("a1")
     })
 
@@ -156,7 +195,7 @@ describe("UniswapRouter", async () => {
     })
 
     it("Selling with too high limit reverts", async () => {
-      let { router, trader, tokenA, WETH, tokenL, wethL } = await loadFixture(fixture)
+      let { router, trader, tokenA, WETH, pairA } = await loadFixture(fixture)
 
       let ethAmount = tokenAmount(5)
 
@@ -165,29 +204,27 @@ describe("UniswapRouter", async () => {
       // Verify that trader's WETH balance is not ignored in limit checking (PVE-001)
       await WETH.deposit({ value: ethAmount.add(tokenAmount(1000)) })
       await WETH.approve(router.address, ethAmount)
-      let prices = uniswapPrices(tokenL, wethL)
-      let expectedTokens = prices.buy(ethAmount)
+      let expectedTokens = pairA.buy(ethAmount)
       await router.buy(tokenA.address, ethAmount, expectedTokens, MaxUint256)
 
-      let expectedWETH = prices.sell(expectedTokens)
+      let expectedWETH = pairA.sell(expectedTokens)
       let limitTooHigh = expectedWETH.add(tokenAmount(1))
       await expect(router.sell(tokenA.address, expectedTokens, limitTooHigh, MaxUint256)).to.be.revertedWith("a1")
     })
 
     it("Selling more than owned fails", async () => {
-      let { router, trader, tokenA, trader2, wethL, tokenL } = await loadFixture(fixture)
+      let { router, trader, tokenA, trader2, pairA } = await loadFixture(fixture)
 
       router = router.connect(trader)
-      let prices = uniswapPrices(wethL, tokenL)
 
       let ethSpent = tokenAmount(5)
-      let totalTokensOfTrader1 = prices.buy(ethSpent)
+      let totalTokensOfTrader1 = pairA.buy(ethSpent)
       await router.depositAndBuy(tokenA.address, LIMIT_NOT_USED, MaxUint256, { value: ethSpent })
       expect(await tokenA.balanceOf(router.address)).to.equal(totalTokensOfTrader1)
 
       let ethSpent2 = tokenAmount(10)
       await router.connect(trader2).depositAndBuy(tokenA.address, LIMIT_NOT_USED, MaxUint256, { value: ethSpent2 })
-      expect(await tokenA.balanceOf(router.address)).to.equal(prices.buy(ethSpent2).add(totalTokensOfTrader1))
+      expect(await tokenA.balanceOf(router.address)).to.equal(pairA.buy(ethSpent2).add(totalTokensOfTrader1))
 
       await expect(router.sellAndWithdraw(tokenA.address, totalTokensOfTrader1.add(10), LIMIT_NOT_USED, MaxUint256)).to.be.revertedWith("SafeMath: subtraction overflow")
     })
@@ -198,17 +235,58 @@ describe("UniswapRouter", async () => {
       router = router.connect(trader)
       await expect(router.estimateReward(trader.address, tokenA.address, tokenAmount(1), tokenAmount(1))).to.be.revertedWith("b4")
     })
+
+    it("Empty safelist reverts", async () => {
+      let { uniswapRouter, trader } = await loadFixture(fixture)
+      await expect(deployContract(trader, VanillaRouter, [uniswapRouter.address, tokenAmount(100), []])).to.be.revertedWith("b6")
+    })
+
+    it("Safelist cannot contain tokens not available in Uniswap", async () => {
+      let { uniswapRouter, trader } = await loadFixture(fixture)
+      const tokenX = await deployContract(trader, ERC20, [tokenAmount(10000)])
+      await expect(deployContract(trader, VanillaRouter, [uniswapRouter.address, tokenAmount(100), [tokenX.address]])).to.be.revertedWith("a2")
+    })
+
+    it("No reward for tokens not in safelist", async () => {
+      let { router, trader, trader2, tokenB, pairB, VNL, WETH } = await loadFixture(fixture)
+
+      router = router.connect(trader)
+      let epoch = 13
+      let ethSpent = tokenAmount(10)
+      let expectedTokens = pairB.buy(ethSpent)
+      await router.depositAndBuy(tokenB.address, LIMIT_NOT_USED, MaxUint256, { value: ethSpent })
+      let { ethSum, tokenSum, weightedBlockSum, latestBlock } = await router.tokenPriceData(trader.address, tokenB.address)
+
+      // trader2 buys a lot more, which drives the price up and lets trader1 to sell for profit
+      let expectedTokens2 = pairB.buy(tokenAmount(100))
+      let tx = await router.connect(trader2).depositAndBuy(tokenB.address, LIMIT_NOT_USED, MaxUint256, { value: tokenAmount(100) })
+      let receipt = await tx.wait()
+
+      let expectedWETH = BigInt(pairB.sell(tokenSum))
+      let wethReserve = await router.wethReserves(tokenB.address)
+      let profit = expectedWETH - BigInt(ethSpent)
+      let reward = 0
+
+      // weth reserve for tokens not in safelist is 0
+      expect(wethReserve).to.equal(0)
+      // no reward for tokens not in safelist
+      await expect(router.sell(tokenB.address, tokenSum, LIMIT_NOT_USED, MaxUint256))
+        .to.emit(router, "TokensSold")
+        .withArgs(trader.address, tokenB.address, tokenSum, expectedWETH, profit, reward, wethReserve)
+
+      expect(await WETH.balanceOf(trader.address)).to.equal(tokenAmount("14.161042504234076055")).and.to.equal(expectedWETH)
+      expect(await VNL.balanceOf(trader.address)).to.equal(tokenAmount(0)).and.to.equal(reward)
+    })
   })
 
   describe("Internal state", async () => {
     it("Buying token updates data for calculating average prices, holding ratio, and limiting trades per block", async () => {
-      let { router, trader, tokenA, wethL, tokenL } = await loadFixture(fixture)
+      let { router, trader, tokenA, pairA } = await loadFixture(fixture)
 
       router = router.connect(trader)
-      let uniswapModel = uniswapPrices(wethL, tokenL)
 
       let ethSpent = tokenAmount(5)
-      let expectedTokens = uniswapModel.buy(ethSpent)
+      let expectedTokens = pairA.buy(ethSpent)
       let receipt = await (await router.depositAndBuy(tokenA.address, LIMIT_NOT_USED, MaxUint256, { value: ethSpent })).wait()
       let block1 = receipt.blockNumber
       {
@@ -220,7 +298,7 @@ describe("UniswapRouter", async () => {
       }
 
       let ethSpent2 = tokenAmount(10)
-      let expectedTokens2 = uniswapModel.buy(ethSpent2)
+      let expectedTokens2 = pairA.buy(ethSpent2)
       receipt = await (await router.depositAndBuy(tokenA.address, LIMIT_NOT_USED, MaxUint256, { value: ethSpent2 })).wait()
       let block2 = receipt.blockNumber
 
@@ -232,27 +310,26 @@ describe("UniswapRouter", async () => {
     })
 
     it("Selling token updates token price data and calculates the rewards", async () => {
-      let { router, trader, trader2, tokenA, wethL, tokenL, VNL, WETH } = await loadFixture(fixture)
+      let { router, trader, trader2, tokenA, pairA, VNL, WETH } = await loadFixture(fixture)
 
       router = router.connect(trader)
-      let epoch = 10
+      let epoch = 13
       let reserveLimit = 100n * 10n ** 18n
       expect(await router.epoch()).to.equal(epoch)
       expect(await router.reserveLimit()).to.equal(reserveLimit)
-      let uniswapModel = uniswapPrices(wethL, tokenL)
 
       let ethSpent = tokenAmount(10)
-      let expectedTokens = uniswapModel.buy(ethSpent)
+      let expectedTokens = pairA.buy(ethSpent)
       await router.depositAndBuy(tokenA.address, LIMIT_NOT_USED, MaxUint256, { value: ethSpent })
       let { ethSum, tokenSum, weightedBlockSum, latestBlock } = await router.tokenPriceData(trader.address, tokenA.address)
 
       // trader2 buys a lot more, which drives the price up and lets trader1 to sell for profit
-      let expectedTokens2 = uniswapModel.buy(tokenAmount(100))
+      let expectedTokens2 = pairA.buy(tokenAmount(100))
       let tx = await router.connect(trader2).depositAndBuy(tokenA.address, LIMIT_NOT_USED, MaxUint256, { value: tokenAmount(100) })
       let receipt = await tx.wait()
 
       // reward formula: R = P*V*H = (P * (W - P - L) * Bhold²) / W / Btrade²
-      let expectedWETH = BigInt(uniswapModel.sell(tokenSum))
+      let expectedWETH = BigInt(pairA.sell(tokenSum))
       let wethReserve = BigInt(await router.wethReserves(tokenA.address))
       let profit = expectedWETH - BigInt(ethSpent)
       let currentBlock = BigInt(receipt.blockNumber + 1)
@@ -266,6 +343,13 @@ describe("UniswapRouter", async () => {
 
       expect(await WETH.balanceOf(trader.address)).to.equal(tokenAmount("14.161042504234076055")).and.to.equal(expectedWETH)
       expect(await VNL.balanceOf(trader.address)).to.equal(tokenAmount("827800.564712710093")).and.to.equal(reward)
+    })
+
+    it("isTokenRewarded returns true if token is on safelist", async () => {
+      let { router, tokenA, tokenB } = await loadFixture(fixture)
+
+      expect(await router.isTokenRewarded(tokenA.address)).to.equal(true)
+      expect(await router.isTokenRewarded(tokenB.address)).to.equal(false)
     })
   })
 

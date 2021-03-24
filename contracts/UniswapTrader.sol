@@ -16,6 +16,7 @@ contract UniswapTrader {
     using SafeMath for uint256;
 
     string private constant _ERROR_SLIPPAGE_LIMIT_EXCEEDED = "a1";
+    string private constant _INVALID_UNISWAP_PAIR = "a2";
 
     address internal immutable _uniswapFactoryAddr;
     address internal immutable _wethAddr;
@@ -24,15 +25,43 @@ contract UniswapTrader {
     mapping(address => uint128) public wethReserves;
 
     /**
-        @notice Deploys the contract and initializes Uniswap contract references.
+        @notice Deploys the contract and initializes Uniswap contract references and internal WETH-reserve for safe tokens.
         @dev using UniswapRouter to ensure that Vanilla uses the same WETH contract
         @param routerAddress The address of UniswapRouter contract
+        @param limit The initial reserve value for tokens in the safelist
+        @param safeList The list of "safe" tokens to trade
      */
-    constructor(address routerAddress) public {
+    constructor(
+        address routerAddress,
+        uint128 limit,
+        address[] memory safeList
+    ) public {
         // fetch addresses via router to guarantee correctness
         IUniswapV2Router02 router = IUniswapV2Router02(routerAddress);
-        _wethAddr = router.WETH();
-        _uniswapFactoryAddr = router.factory();
+        address wethAddr = router.WETH();
+        IUniswapV2Factory factory = IUniswapV2Factory(router.factory());
+        for (uint256 i = 0; i < safeList.length; i++) {
+            address token = safeList[i];
+            // verify that WETH-token pair exists in Uniswap
+            // (order isn't significant, UniswapV2Factory.createPair populates the mapping in reverse direction too)
+            address pair = factory.getPair(token, wethAddr);
+            require(pair != address(0), _INVALID_UNISWAP_PAIR);
+
+            // we initialize the fixed list of rewardedTokens with the reserveLimit-value that they'll match the invariant
+            // "every rewardedToken will have wethReserves[rewardedToken] > 0"
+            // (this way we don't need to store separate lists for both wethReserve-tracking and tokens eligible for the rewards)
+            wethReserves[token] = limit;
+        }
+        _wethAddr = wethAddr;
+        _uniswapFactoryAddr = address(factory);
+    }
+
+    /**
+        @notice Checks if the given ERC-20 token will be eligible for rewards (i.e. a safelisted token)
+        @param token The ERC-20 token address
+     */
+    function isTokenRewarded(address token) public view returns (bool) {
+        return wethReserves[token] > 0;
     }
 
     function _pairInfo(
@@ -80,6 +109,10 @@ contract UniswapTrader {
     {
         // when buying, update internal reserve only if Uniswap reserve is greater
         reserve = wethReserves[token];
+        if (reserve == 0) {
+            // trading a non-safelisted token, so do not update internal reserves
+            return reserve;
+        }
         if (wethReserve > reserve) {
             wethReserves[token] = wethReserve;
             reserve = wethReserve;
@@ -124,12 +157,16 @@ contract UniswapTrader {
         require(numToken >= amount_, _ERROR_SLIPPAGE_LIMIT_EXCEEDED);
     }
 
-    function _updateTokenReserveOnSell(address token, uint112 wethReserve)
+    function _updateReservesOnSell(address token, uint112 wethReserve)
         private
         returns (uint128 reserve)
     {
         // when selling, update internal reserve only if the Uniswap reserve is smaller
         reserve = wethReserves[token];
+        if (reserve == 0) {
+            // trading a non-safelisted token, so do not update internal reserves
+            return reserve;
+        }
         if (wethReserve < reserve) {
             wethReserves[token] = wethReserve;
             reserve = wethReserve;
@@ -157,7 +194,7 @@ contract UniswapTrader {
                 tokenReceiver_,
                 new bytes(0)
             );
-            reserve = _updateTokenReserveOnSell(token_, wethReserve);
+            reserve = _updateReservesOnSell(token_, wethReserve);
         } else {
             (uint112 wethReserve, uint112 tokenReserve, ) = pair.getReserves();
             pair.swap(
@@ -166,7 +203,7 @@ contract UniswapTrader {
                 tokenReceiver_,
                 new bytes(0)
             );
-            reserve = _updateTokenReserveOnSell(token_, wethReserve);
+            reserve = _updateReservesOnSell(token_, wethReserve);
         }
         // finally check how the receivers balance has changed after swap
         numEth = IERC20(_wethAddr).balanceOf(tokenReceiver_) - balance;
