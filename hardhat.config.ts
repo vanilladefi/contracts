@@ -69,7 +69,7 @@ const hardhatConfig: HardhatUserConfig = {
       url: NETWORKS.MAINNET.URL,
       accounts: NETWORKS.MAINNET.ACCOUNTS,
       live: true,
-      gasPrice: 120 * 1_000_000_000,
+      gasPrice: 200 * 1_000_000_000,
       chainId: 1,
     },
     ropsten: {
