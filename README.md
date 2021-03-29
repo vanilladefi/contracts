@@ -28,6 +28,10 @@ npm run format:js
 npm run format:sol
 ```
 
+## Deployment
+
+We use Hardhat also for all deployments. See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
+
 ## License
 
 [GPL 3.0](LICENSE)
