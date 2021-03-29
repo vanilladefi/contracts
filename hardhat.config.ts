@@ -6,15 +6,15 @@ import "@nomiclabs/hardhat-waffle"
 import "hardhat-deploy"
 import "hardhat-deploy-ethers"
 import UniswapPair from "@uniswap/v2-core/build/IUniswapV2Pair.json"
-import VanillaRouter from "./artifacts/contracts/VanillaRouter.sol/VanillaRouter.json"
 
-task("check-epoch", "Checks the epoch of the deployed VanillaRouter", async (_, { network, ethers, deployments }) => {
+task("check-epoch", "Checks the epoch of the deployed VanillaRouter", async (_, { network, ethers, artifacts, deployments }) => {
   const { get } = deployments
+  let {abi} = await artifacts.readArtifact("VanillaRouter")
 
   try {
     console.log(`Checking VanillaRouter deployment in '${network.name}':`)
     let {address} = await get("VanillaRouter")
-    let router = new ethers.Contract(address, VanillaRouter.abi, await ethers.getNamedSigner("deployer"))
+    let router = new ethers.Contract(address, abi, await ethers.getNamedSigner("deployer"))
     let epoch = await router.epoch()
     console.log(`VanillaRouter deployed in ${address}, at block ${epoch.toNumber()}`)
   }
