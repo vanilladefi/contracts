@@ -6,12 +6,27 @@ import "@nomiclabs/hardhat-waffle"
 import "hardhat-deploy"
 import "hardhat-deploy-ethers"
 import UniswapPair from "@uniswap/v2-core/build/IUniswapV2Pair.json"
-import { Wallet } from "ethers"
+import VanillaRouter from "./artifacts/contracts/VanillaRouter.sol/VanillaRouter.json"
+
+task("check-epoch", "Checks the epoch of the deployed VanillaRouter", async (_, { network, ethers, deployments }) => {
+  const { get } = deployments
+
+  try {
+    console.log(`Checking VanillaRouter deployment in '${network.name}':`)
+    let {address} = await get("VanillaRouter")
+    let router = new ethers.Contract(address, VanillaRouter.abi, await ethers.getNamedSigner("deployer"))
+    let epoch = await router.epoch()
+    console.log(`VanillaRouter deployed in ${address}, at block ${epoch.toNumber()}`)
+  }
+  catch (e) {
+    console.error(e)
+  }
+})
 
 task("test-accounts", "Prints the list of test accounts", async (_, { ethers }) => {
   // creates a BIP-32 path with 5 levels as defined in BIP-44
   const hdpath = (index: number) => `m/44'/60'/0'/0/${index}`
-  // Hardhat's default as defined in https://hardhat.org/config/#hardhat-network 
+  // Hardhat's default as defined in https://hardhat.org/config/#hardhat-network
   const DEFAULT_TEST_MNEMONIC = "test test test test test test test test test test test junk"
 
   let accounts = []

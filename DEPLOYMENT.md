@@ -64,3 +64,10 @@ Set the `ALCHEMY_ROPSTEN_APIKEY` and `GOERLI_ROPSTEN_PRIVATE_KEY` in `.secrets.e
 ```shell
 npm run deploy:ropsten
 ```
+
+## Deployment verification
+
+Quickest way to sanity-test the deployment is to execute the following Hardhat task in the network, and compare it to the block number of the deployment transaction:
+```shell
+npx hardhat --network <network_name> check-epoch
+```
