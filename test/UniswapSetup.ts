@@ -26,12 +26,11 @@ export const deployTokens = async (wallet: Wallet) => {
   return { tokenA, tokenB, WETH }
 }
 
-export const createLiquidityETH = async (tokenOwner: Signer, router: Contract, token: Contract, weth: Contract, overrides = { gasLimit: 9999999 }) => {
+export const createLiquidityETH = async (tokenOwner: Signer, router: Contract, token: Contract, weth: Contract) => {
   let tokenLiquidity = tokenAmount(500)
   let wethLiquidity = tokenAmount(500)
   await token.connect(tokenOwner).approve(router.address, MaxUint256)
   await router.connect(tokenOwner).addLiquidityETH(token.address, tokenLiquidity, tokenLiquidity, wethLiquidity, await tokenOwner.getAddress(), MaxUint256, {
-    ...overrides,
     value: wethLiquidity,
   })
   return {
