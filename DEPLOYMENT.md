@@ -1,11 +1,17 @@
 # Deployment
 
-We use Hardhat also for deployment in different networks.
+Vanilla has been deployed already in following public networks:
+
+- Mainnet: [`0xE13E9010e818D48df1A0415021d9526ef845e2Cd`](https://etherscan.io/address/0xe13e9010e818d48df1a0415021d9526ef845e2cd)
+- Ropsten: [`0xcEb9A8c92689b5AeEC26160D06236cC711Fa3836`](https://ropsten.etherscan.io/address/0xceb9a8c92689b5aeec26160d06236cc711fa3836)
+- Goerli: [`0x9D9B49892ae40D59C325494cf0b19444E7b1440C`](https://goerli.etherscan.io/address/0x9d9b49892ae40d59c325494cf0b19444e7b1440c)
+
+Hardhat is used also as an deployment tool.
 
 ## Configuration
 
-Deployment is configured by environment variables, `.secrets.env` file, and ultimately the network config
-in `hardhat.config.ts`.
+Deployment is configured by the network config in `hardhat.config.ts`.
+However, it is parametrized by environment variables via `.secrets.env` file, so usually that's the only place which needs changes if deploying to pre-configured networks (including the [local mainnet fork](#deploy-contracts-to-a-local-mainnet-fork)).
 
 1. Copy `.secrets.env.example` to `.secrets.env` and add in your keys. Never commit your keys to version control, which
    is why `.secrets.env` is .gitignored.
@@ -15,15 +21,15 @@ We use [`dotenv`-package](https://www.npmjs.com/package/dotenv) for reading the 
 
 ## Deploy contracts to a local mainnet fork
 
-Set the `ALCHEMY_MAINNET_APIKEY` and execute:
+Set the `ALCHEMY_MAINNET_APIKEY` in `.secrets.env` and execute:
 
 ```shell
 npm run node:mainnet-fork
 ```
 
-which starts a localhost node, which acts like a mainnet node during deploy.
+which starts a localhost node, which acts like a mainnet node during deployment.
 
-Other archive node providers for mainnet forks (Infura etc) are not supported.
+Other archive node providers for mainnet forks (Infura etc) are not currently supported.
 
 ### Running the local mainnet fork in a Docker container
 
@@ -59,10 +65,18 @@ npm run deploy:goerli
 
 ## Deploy contracts to Ropsten
 
-Set the `ALCHEMY_ROPSTEN_APIKEY` and `GOERLI_ROPSTEN_PRIVATE_KEY` in `.secrets.env` and execute:
+Set the `ALCHEMY_ROPSTEN_APIKEY` and `ROPSTEN_DEPLOYER_PRIVATE_KEY` in `.secrets.env` and execute:
 
 ```shell
 npm run deploy:ropsten
+```
+
+## Deploy contracts to mainnet
+
+Set the `ALCHEMY_MAINNET_APIKEY` and `MAINNET_DEPLOYER_PRIVATE_KEY` in `.secrets.env`, adjust the gas price in `hardhatConfig.networks.mainnet` high enough (located in `hardhat.config.ts`) and execute:
+
+```shell
+npx hardhat --network mainnet deploy
 ```
 
 ## Deployment verification
