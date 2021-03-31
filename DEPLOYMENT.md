@@ -1,6 +1,10 @@
 # Deployment
 
-We use Hardhat also for deployment in different networks.
+We use Hardhat also for deployment in different networks. Vanilla has been deployed already in following public networks:
+
+- Mainnet: [`0xE13E9010e818D48df1A0415021d9526ef845e2Cd`](https://etherscan.io/address/0xe13e9010e818d48df1a0415021d9526ef845e2cd)
+- Ropsten: [`0xcEb9A8c92689b5AeEC26160D06236cC711Fa3836`](https://ropsten.etherscan.io/address/0xceb9a8c92689b5aeec26160d06236cc711fa3836)
+- Goerli: [`0x9D9B49892ae40D59C325494cf0b19444E7b1440C`](https://goerli.etherscan.io/address/0x9d9b49892ae40d59c325494cf0b19444e7b1440c)
 
 ## Configuration
 
@@ -59,10 +63,18 @@ npm run deploy:goerli
 
 ## Deploy contracts to Ropsten
 
-Set the `ALCHEMY_ROPSTEN_APIKEY` and `GOERLI_ROPSTEN_PRIVATE_KEY` in `.secrets.env` and execute:
+Set the `ALCHEMY_ROPSTEN_APIKEY` and `ROPSTEN_DEPLOYER_PRIVATE_KEY` in `.secrets.env` and execute:
 
 ```shell
 npm run deploy:ropsten
+```
+
+## Deploy contracts to mainnet
+
+Set the `ALCHEMY_MAINNET_APIKEY` and `MAINNET_DEPLOYER_PRIVATE_KEY` in `.secrets.env`, adjust the gas price in `hardhatConfig.networks.mainnet` high enough (located in `hardhat.config.ts`) and execute:
+
+```shell
+npx hardhat --network mainnet deploy
 ```
 
 ## Deployment verification
