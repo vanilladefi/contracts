@@ -3,7 +3,7 @@ import { DeployFunction } from "hardhat-deploy/dist/types"
 import UniswapV2Router02 from "@uniswap/v2-periphery/build/UniswapV2Router02.json"
 import ERC20 from "@uniswap/v2-periphery/build/ERC20.json"
 
-const func: DeployFunction = async function ({ ethers, deployments, getNamedAccounts }: HardhatRuntimeEnvironment) {
+const func: DeployFunction = async function ({ ethers, deployments, getNamedAccounts, network }: HardhatRuntimeEnvironment) {
   const { deploy, getOrNull, get, execute } = deployments
 
   const { deployer } = await getNamedAccounts()
@@ -11,6 +11,9 @@ const func: DeployFunction = async function ({ ethers, deployments, getNamedAcco
 
   const existingDeployment = await getOrNull("UniswapV2Router02")
   if (!existingDeployment) {
+    if (!(network.name === "localhost" || network.name === "hardhat")) {
+      throw new Error(`UniswapV2Router02 should've been deployed in "${network.name}", check the deployments`)
+    }
     const { address: wethAddress } = await get("WETH9")
     const { address: factoryAddress } = await get("UniswapV2Factory")
     const { address: routerAddress } = await deploy("UniswapV2Router02", {

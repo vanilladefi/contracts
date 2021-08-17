@@ -11,12 +11,14 @@
     "./test",
     "./deploy",
     "./utils",
-    "./hardhat.config.ts"
+    "./hardhat.config.ts",
+    "./hardhat/",
+    "./typechain"
   ],
   "files": [
     "./node_modules/@nomiclabs/hardhat-ethers/src/type-extensions.d.ts",
     "./node_modules/@nomiclabs/hardhat-waffle/src/type-extensions.d.ts",
     "./node_modules/hardhat-deploy/src/type-extensions.ts",
-    "./node_modules/hardhat-deploy-ethers/src/type-extensions.ts"
+    "./node_modules/hardhat-deploy-ethers/src/type-extensions.ts",
   ]
 }

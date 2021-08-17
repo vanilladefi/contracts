@@ -2,14 +2,29 @@
 
 This repository contains the core smart contracts for Vanilla. For documentation, see [the technical overview](contracts/README.md) of the contracts.
 
+## Install PNPM
+
+We use [pnpm](https://pnpm.io/) instead of npm. Use npm to install pnpm:
+
+```shell
+npm install -g pnpm
+```
+
 ## Build and Test
 
 We use [Hardhat](https://hardhat.org/) as a build tool.
 
-To build and run tests:
+To build, generate Typechain bindings, and run model tests:
 ```
-npm install
-npm test
+pnpm install
+pnpm run compile:sol
+pnpm run generate:typechain
+pnpm test
+```
+
+To run coverage reports
+```
+pnpm run coverage:sol
 ```
 
 ## Lint and reformat
@@ -18,14 +33,14 @@ We use [ESLint](https://eslint.org/) for JS/TS code and [Prettier](https://prett
 
 To run lint checks:
 ```
-npm run lint:js
-npm run lint:sol
+pnpm run lint:js
+pnpm run lint:sol
 ```
 
 To reformat / prettify:
 ```
-npm run format:js
-npm run format:sol
+pnpm run format:js
+pnpm run format:sol
 ```
 
 ## Deployment
@@ -34,4 +49,5 @@ We use Hardhat also for all deployments. See [DEPLOYMENT.md](DEPLOYMENT.md) for 
 
 ## License
 
-[GPL 3.0](LICENSE)
+All source code is licensed under [GPL-3.0-or-later](LICENSE) except:
+- [contracts/Tickmath.sol](contracts/TickMath.sol) -library, which is a derived work from a similar library in [Uniswap v3 Core](https://github.com/Uniswap/uniswap-v3-core/blob/main/contracts/libraries/TickMath.sol), and is licensed under [GPL-2.0-or-later](LICENSE_TICKMATH)

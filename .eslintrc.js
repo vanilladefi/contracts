@@ -16,6 +16,7 @@ module.exports = {
     "no-proto": 2,
     "no-unused-vars": 1,
     "prefer-const": 0,
+    camelcase: 0,
     quotes: [2, "double"],
   },
 }

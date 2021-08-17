@@ -8,10 +8,11 @@ COPY utils ./utils
 COPY deploy ./deploy
 COPY deployments ./deployments
 RUN apk add --virtual build-dependencies git && \
-    npm install && \
+    npm install -g pnpm && \
+    pnpm install && \
     apk del build-dependencies
 
 EXPOSE 8545
 
-CMD npm run node:mainnet-fork
+CMD pnpm run node:mainnet-fork
 

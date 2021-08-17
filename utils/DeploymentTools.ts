@@ -1,4 +1,11 @@
-import { request, gql } from "graphql-request"
+import { gql, request } from "graphql-request"
+import { Provider } from "@ethersproject/providers"
+import {
+  VanillaV1MigrationState__factory,
+  VanillaV1Router02__factory,
+  VanillaV1Safelist01__factory,
+  VanillaV1Token02__factory,
+} from "../typechain/vanilla_v1.1"
 
 type GraphQuery = {API: string, query: string}
 export type Token = {address: string, symbol: string}
@@ -151,3 +158,10 @@ export const queryCrossExchangeLiquidity = async (
     .sort((a, b) => b.total - a.total))
   return estimates.filter(safeListCriteria).sort((a, b) => a.token.symbol.localeCompare(b.token.symbol))
 }
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export const connectUsing = (provider: Provider) => ({
+  router: (address: string) => VanillaV1Router02__factory.connect(address, provider),
+  safelist: (address: string) => VanillaV1Safelist01__factory.connect(address, provider),
+  vnlToken: (address: string) => VanillaV1Token02__factory.connect(address, provider),
+  migrationState: (address: string) => VanillaV1MigrationState__factory.connect(address, provider),
+})

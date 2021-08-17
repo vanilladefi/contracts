@@ -1,217 +1,247 @@
-# Vanilla v1 Contract Documentation
+# Vanilla v1.1 Contract Documentation
 
-Vanilla is implemented in three Solidity contracts. All user-facing calls will happen via [VanillaRouter](VanillaRouter.sol), which inherits trading functionality from [UniswapTrader](UniswapTrader.sol). Profitable trading is rewarded with [VanillaGovernanceToken](VanillaGovernanceToken.sol) -ERC20s.
+## Overview
 
-## Concepts
+Vanilla v1.1 is a permissionless, non-upgradeable trading system deployed in Ethereum mainnet. In Vanilla, there are three user roles who can change the system state - the traders, VNL holders, and the Vanilla DAO.
 
-### Trading
+Vanilla traders can:
+- open personal ERC-20 token positions with Ether/WETH ([buy](#buy)),
+- close those positions for Ether/WETH ([sell](#sell)),
+- withdraw their token positions from the custody without selling ([emergency withdraw](#emergency-withdraw)), and
+- migrate their token positions to approved future versions ([migrate position](#migrate-position))
 
-In Vanilla, a user can do two things — buy and sell ERC-20 tokens. All trading happens using [Uniswap](https://github.com/Uniswap/uniswap-v2-core/) [WETH](https://etherscan.io/address/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2) -pairs.
+VNL holders can:
+- convert their v1.0 VNL tokens to v1.1 VNL tokens ([convert](#convert-vnl)),
+- do any standard ERC-20 operations with their tokens ([transfer, approve, etc](#standard-erc-20-operations))
 
-- To buy a token, user calls `VanillaRouter.buy()`-function, along with the address of the traded token, the limit amount of tokens, and a deadline timestamp. VanillaRouter holds the direct ownership of the tokens and keeps record of the assets of each user (see [Token Custody](#token-custody)).
-- To sell a token, user calls `VanillaRouter.sell()`-function, along with the address of the traded token, number of sold tokens, the limit amount of Ether, and a deadline timestamp. Users can only sell the tokens, which they have bought themselves.
+Vanilla DAO can:
+- add ERC-20s to the _safelist_ which enables the Vanilla profit-mining for them ([update safelist](#update-safelist))
+- remove ERC-20s from the _safelist_ which disables the Vanilla profit-mining for them ([update safelist](#update-safelist)
+- update the v1.0 token snapshot which enables VNL holders to convert their tokens ([update migrationstate](#update-migration-state))
+- approve the next future version which enables traders to migrate their positions ([approve next version](#approve-next-version))
 
-Trading transaction can revert for multiple reasons, for example:
+These are the **only** state-changing operations that anyone can execute in Vanilla. This means for example:
 
-- Uniswap doesn't recognize the token
-- Uniswap can not buy or sell the token for the given price (the constant-product invariant is violated)
-- A transaction may take too long to execute (e.g., miners holding back for extended periods, see [Uniswap documentation](https://uniswap.org/docs/v1/frontend-integration/trade-tokens/#deadlines))
-- Selling more tokens than possible
+- Nobody can mint new VNL except the smart contracts
+- Nobody can close traders' positions except the trader who owns it
+- Nobody can stop contracts from working or upgrade the functionality
 
-### Token custody
 
-Bought tokens are not transferred back to the caller of the `VanillaRouter.buy()`. The VanillaRouter keeps them instead until user sells them with `VanillaRouter.sell()`.
+## Trader operations
 
-### Price calculations
+These operations are located in the `VanillaV1Router02` contract.
 
-To calculate the profit of the trade, the contract needs to keep track of the purchase price. The traditional inventory pricing conventions like [FIFO and LIFO](https://en.wikipedia.org/wiki/FIFO_and_LIFO_accounting) are impractical to implement due to the gas costs of keeping track of all purchases.
+### General concepts
 
-Instead, Vanilla keeps track of a user-specific average purchase price for each traded token. For this, Vanilla calculates a _Weighted Average Exchange Rate of purchases_ which needs two `uint256`s, the volume of the Ether trade and the volume of the token trade.
+#### Multi-call support
 
-#### Weighted Average Exchange Rate of Purchases
+Vanilla implements the so-called _multicall_ support for any state-changing operations that traders can perform. This is an adapted version from the [OpenZeppelin implementation](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/Multicall.sol) which works with `payable`.
 
-Buying a token updates the average purchase price as the ratio of exchange volumes changes:
+The `executePayable` multicall function in Vanilla works like this:
+1. if function was called with non-zero value, Vanilla deposits it all to WETH (only single deposit per multicall, which saves gas)
+2. Vanilla executes all encoded function arguments using `delegateCall` on itself (how WETHs are allocated on each encoded buy/sell is controlled by the [OrderData-struct](#orderdata))
+3. After successful `delegateCall`s, Vanilla first withdraws all WETH back to Ether, and finally sends all Ether the contract owns back to caller (only single withdraw per multicall, which saves gas)
 
-- User buys 10 tokens for 10 WETH: `ethSum` = 0+10 = 10, `tokenSum` = 0+10 = 10, and average purchase price is `10/10 = 1`
-- User buys 10 more tokens for 8 WETH: `ethSum` = 10+8 = 18, `tokenSum` = 10+10 = 20, and average purchase price is `18/20 = 0,9` (fractions are just for the sake of the example, token balances are usually larger than in this example, which mitigates the fixed point rounding errors)
+This enables trader to use Ether for trading (Vanilla and Uniswap v3 uses WETH internally so `executePayable` is the only entrypoint where WETH deposit is made), and combine different trader functions in a single transaction.
 
-Selling a token adjusts the exchange volumes proportionally, which doesn't update the average purchase price (but shifts the weights for future calculations):
+`execute` multicall function is similar to `executePayable` except that it's not payable and therefore cannot be used on buying directly with Ether.
 
-- User sells 15 tokens for 20 WETH: `tokenSum` = 20-15 = 5, but `ethSum` = `ethSum*(tokenSumDiff)/(prevTokenSum)` = 18\*(20-15)/20 = 4.5, and the average purchase price is 4.5/5 = 0.9
-- User sells the remaining 5 tokens for 10 WETH: `tokenSum` = 5-5 = 0, `ethSum` = 4.5\*0/5 = 0, and as all is sold, average purchase price is not a number.
+#### OrderData
 
-Using this formula, Vanilla can keep track of average prices in a gas-efficient and fair way. `VanillaRouter` implements the price calculation logic in internal functions `_executeBuy` and `_executeSell` and keeps track of the exchange volumes in a `_tokenPriceData` mapping.
+The `OrderData` struct is used as an input for both buy and sell-transactions.
 
-### Profit
+```solidity
+struct OrderData {
+    // The address of the token to be bought or sold
+    address token;
 
-Profit is calculated whenever user sells tokens. Knowing the selling price and the average purchasing price (`ethSum/tokenSum`), the profit is calculated as `receivedEth - expectedEth` where `expectedEth = ethSum*tokensSold/tokenSum`. Basically, if the user received more Ether than was expected, a profit was made.
+    // if true, buy-order transfers WETH from caller and sell-order transfers WETHs back to caller without withdrawing
+    // if false, it's assumed that executePayable is used to deposit/withdraw WETHs before order
+    bool useWETH;
 
-### Safelist
+    // The exact amount of WETH to be spent when buying or the limit amount of WETH to be received when selling.
+    uint256 numEth;
 
-Vanilla uses a _safelist_ of tokens to filter which profitable trades are eligible for VNL rewards. This is a safety measure to protect the value of `VanillaGovernanceToken` as a malicious ERC-20 can potentially be used to fully control the Uniswap trading and therefore the VNL distribution. The safelisting mechanism only affects the rewards - the non-safelisted tokens can be purchased and sold with Vanilla API, along with profit calculation support.
+    // The exact amount of token to be sold when selling or the limit amount of token to be received when buying.
+    uint256 numToken;
 
-The safelist is defined as a constructor parameter for `VanillaRouter`. Internally, the safelist checks are implemented with `UniswapRouter.wethReserves` mapping - the internal WETH reserve state is tracked only for safelisted tokens, otherwise it's always 0.
+    // The block.timestamp when this order expires
+    uint256 blockTimeDeadline;
 
-### Tokens
+    // The Uniswap v3 fee tier to use for the swap (500 = 0.05%, 3000 = 0.3%, 10000 = 1.0%)
+    uint24 fee;
+}
+```
 
-User is rewarded with a number of `VanillaGovernanceToken`s using a formula `R = PVH` where :
+### Buy
 
-- `P` is the absolute [profit](#profit), which sets the theoretical maximum reward for any single trade.
-- `V` is the _Value Protection Coefficient_, a percentage which adjusts the reward, incentivizing the trades of tokens where price manipulation is more expensive and therefore the value of the governance token is best protected.
-- `H` is the _Holding/Trading Ratio Squared_, a percentage which adjusts the reward, incentivizing longer holding periods and earlier purchases.
+```solidity
+function buy( OrderData calldata buyOrder ) payable external;
+```
+This function uses `OrderData` input as a buy-order, with following properties after successful execution:
 
-`VanillaRouter` implements the reward algorithm in an internal function `_calculateReward` and mints the tokens based on reward in the `_executeSell`-function.
+- `numEth` WETHs has been transferred to existing and initialized Uniswap v3 pool with `fee` from either Vanilla custody balance (when `useWETH` is false) or directly from trader's balance (when `useWETH` is false)
+- at least `numToken` more `token`s will be in Vanilla custody, added into `msg.sender` `token`-position
+- `block.timestamp` of the transaction will be less than `blockTimeDeadline`
 
-The `VanillaGovernanceToken` uses 12 decimals for displaying VNL amounts in a more human-readable range. This means that for a 1ETH of profit the theoretical maximum reward is 1000000VNL.
+It can be called by a trader:
+- who either
+  - has atleast `numEth` WETH in current balance _and_ has approved VanillaV1Router02 to spend `numEth` WETH (if `useWETH` is true), or
+  - is executing `buy` within the `executePayable` function batch _and_ has sent atleast `numEth` of value (if `useWETH` is false)
+- who has not executed a transaction for the `token` in the same block (one-trade-per-block-per-token rule)
 
-### Value Protection Coefficient
 
-With constant product markets like Uniswap, the price manipulation of a single token is always possible, however it has [a cost relative to the liquidity pool size](https://arxiv.org/abs/1911.03380). Based on this dynamic, the _Value Protection Coefficient_ is used to protect the reward mechanism and the value of the governance tokens against price manipulation and malicious tokens.
+### Sell
 
-The coefficient formula is `V = 1-min((P + L)/W, 1)` where
+```solidity
+function sell( OrderData calldata sellOrder ) payable external;
+```
+This function uses `OrderData` input as a sell-order, with following properties after successful execution:
 
-- `P` is the absolute [profit](#profit) in Ether.
-- `L` is the immutable WETH reserve limit that is set when the VanillaRouter is deployed. This means that rewards are never minted when selling a token whose WETH liquidity reserves are lower than `L`.
-- `W` is the internally tracked WETH reserve size for the Uniswap liquidity pair. This means that trades of high-liquidity tokens will get a higher coefficient and the reward than low-liquidity tokens.
+- `numToken` `token`s has been transferred to existing and initialized Uniswap v3 pool with `fee` from Vanilla custody's balance
+- either at least `numEth` more WETH will be added (temporarily) into Vanilla custody (if `useWETH` is false), or at least `numEth` WETHs will be transferred directly to `msg.sender` (if `useWETH` is true)
+- `block.timestamp` of the transaction will be less than `blockTimeDeadline`
+- the positive difference of [profit-mining price]() and the [expected price](#expected-price) will be used in profit-mining calculation, and VNL tokens will be minted to `msg.sender` accordingly
 
-To further protect the token value against the more sophisticated market manipulation, the internally tracked `W` is updated using Uniswap WETH reserves and contract state with following rules:
+It can be called by a trader:
+- who has an existing position in `token`, sized at least `numToken` tokens
+- who has not executed a transaction for the `token` in the same block (one-trade-per-block-per-token rule)
 
-- `W = max(W, uniswapReserve)` when buying the token,
-- `W = min(W, uniswapReserve)` when selling the token
 
-UniswapTrader implements the internal WETH reserve update rules in private `_updateReservesOnBuy` and `_updateReservesOnSell` functions.
+### Emergency Withdraw
 
-### Holding/Trading Ratio, Squared
+```solidity
+function withdrawTokens(address token) external;
+```
 
-The _Holding/Trading Ratio, Squared_ is used to protect the value of the governance token against short-term speculations, and to incentivize longer holding periods and earlier investment.
+This function:
+- will transfer to trader (`msg.sender`) the exact amount of `token` which matches the trader's current position
+- will clear the trader position data for given token
 
-The HTRS formula is `H = (Bhold/Btrade)² = ((Bmax-Bavg)/(Bmax-Bmin))²` where
+It can be called by any trader who has an open position in Vanilla and is only intended to be used when there are emerging issues with either Uniswap v3 pools or Vanilla contracts.
 
-- `Bhold` is the number of blocks the trade has been held (instead of traded)
-- `Btrade` is the maximum possible trading time in blocks
-- `Bmax` is `block.number` (when the trade is happening)
-- `Bavg` is the [Volume-Weighted Average of the Purchase](#weighted-average-block-of-purchase)
-- `Bmin` is the [epoch](#vanillarouterepoch) - the `block.number` when VanillaRouter was deployed
+### Migrate Position
 
-#### Weighted Average Block of Purchase
+```solidity
+function migratePosition(address token, address nextVersion) external;
+```
 
-Similarly to Average Price of Purchase, Vanilla keeps track of Average Block of Purchase for each user and each token they traded. The algorithm is adapted from [VWAP](https://en.wikipedia.org/wiki/Volume-weighted_average_price) but the algorithm weighs the `block.number` in which the purchase happens instead of price. For example:
+This function:
+- will transfer to [approved](#approve-next-version) `nextVersion` the exact amount of `token` which matches the trader's current position.
+- will call the function `IVanillaV1MigrationTarget02.migrateState()` -function with trader's current position data
+- will clear the trader `token` position data
 
-- User buys 10 tokens in block 100: `tokenSum` = 10, `weightedBlockSum` = 0 + (10\*100) = 1000, average block = 1000/10 = 100
-- User buys 20 tokens in block 200: `tokenSum` = 30, `weightedBlockSum` = 1000 + (20\*200) = 5000, average block = 5000/30 = 166
+It can be called by any trader who has an open position in Vanilla but will revert until Vanilla DAO [approves the next version](#approve-next-version).
 
-All block numbers in calculations are defined as a distance from the _epoch_ which is the block.number in which the `VanillaRouter` was deployed.
+## VNL Holder operations
 
-Similarly to Average Price of Purchase, when selling tokens the algorithm adjusts the `weightedBlockSum` proportionally which only updates the weights but not the average block of purchases.
+These operations are located in `VanillaV1Token02` contract.
 
-`VanillaRouter` implements the block averaging logic in internal functions `_executeBuy` and `_executeSell` and keeps track of the weighted sums in a `_tokenPriceData` mapping.
+### Convert VNL
 
-## API
+```solidity
+function convertVNL(bytes32[] memory proof) external;
+```
+This function:
+- will check that the Merkle tree leaf `keccak256(abi.encodePacked(msg.sender, ":", IERC20(address(vanillaV1_01)).balanceOf(msg.sender)))` along with the `proof` matches the migration state Merkle tree root in `VanillaV1MigrationState.stateRoot()`
+- will transfer all `msg.sender`s VNL v1.0 tokens to `VanillaV1Token02` balance (effectively locked there)
+- will mint `msg.sender` VNL v1.1 tokens in return in 1:1 ratio
 
-### State-changing functions
+It can be called by anyone who has an existing balance of VNL v1.0 tokens, has approved the `VanillaV1Token02` to spend those tokens, and whose token balance has been included in the latest [migration state snapshot](#update-migration-state)
 
-#### VanillaRouter.buy()
+### Standard ERC-20 operations
 
-The tokens are bought using this function. The signature is as follows:
+`VanillaV1Token02` contract extends [OpenZeppelin's ERC-20 reference implementation](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol). VNL token has 12 decimals.
 
-| name     | Description                                                                                                                                                                                       | Preconditions                                                                                             |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| token    | A ERC-20 token address to buy for `numEth`.                                                                                                                                                       | An UniswapV2Pair for trading WETH and token must exist.                                                   |
-| numEth   | The amount of WETH to spend to buy `numToken` tokens.                                                                                                                                             | VanillaRouter must have sufficient allowance to transfer `numEth` WETH from the trader.                   |
-| numToken | The minimum amount of tokens to make trade acceptable (i.e. [limit amount](#off-chain-prices-and-limits)). The calculated purchase price is therefore equal to exchange rate `numEth / numToken`. | [Uniswap liquidity invariants and preconditions](https://uniswap.org/docs/v2/core-concepts/swaps/) apply. |
-| deadline | The trade execution deadline as `block.timestamp`, to protect the trader from transaction reordering delays.                                                                                      | `deadline` must be later than the time of trade, otherwise the transaction reverts.                       |
+## Vanilla DAO operations
 
-If the trade was successful, the [`TokensPurchased` event](#events) is emitted.
+These operations are located in `VanillaV1MigrationState` and `VanillaV1Safelist01` contracts.
 
-This function is more gas-efficient way of buying if the trader already owns the WETH tokens to make a trade.
+### Update Safelist
 
-#### VanillaRouter.depositAndBuy() payable
+```solidity
+function modify(address[] calldata added, address[] calldata removed) external onlyOwner
+```
 
-This function behaves similarly to [buy()](#vanillarouterbuy), but is payable and doesn't require `numEth` parameter nor its preconditions for WETH pre-approval. Instead, it internally wraps the `msg.value` amount of ether to WETH before continuing with the trading.
+This function is located in `VanillaV1Safelist01` contract and:
+- will add the `added` tokens to public `isSafelisted` mapping
+- will remove the `removed` tokens from public `isSafelisted` mapping
 
-`depositAndBuy()` is an easier way of buying if the trader don't possess WETH tokens beforehand.
+It can only be called by the Vanilla DAO multisig.
 
-#### VanillaRouter.sell()
+### Update Migration State
 
-The tokens are sold using this function. The signature is as follows:
+```solidity
+function updateConvertibleState(bytes32 newStateRoot, uint64 blockNum) onlyOwner beforeDeadline external
+```
+This function is located in `VanillaV1MigrationState` contract and:
+- will set the `newStateRoot` (the Merkle tree state root of all VNL v1 balances before the block number `blockNum`) to public `stateRoot` variable
+- will reset the public `conversionDeadline` timestamp to roughly 30 days from the transaction `block.timestamp` (30 * 24 * 60 * 60 seconds)
 
-| name        | Description                                                                                                                                                                                      | Preconditions                                                                                             |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| token       | A ERC-20 token address to sell for `numEthLimit`.                                                                                                                                                | `msg.sender` must own this token in the [Vanilla custody](#token-custody).                                |
-| numToken    | The amount of tokens to swap to `numEthLimit` WETH.                                                                                                                                              | `msg.sender` must own enough tokens in custody.                                                           |
-| numEthLimit | The minimum amount of WETH to make trade acceptable (i.e. [limit amount](#off-chain-prices-and-limits)). The calculated sell price is therefore equal to exchange rate `numEthLimit / numToken`. | [Uniswap liquidity invariants and preconditions](https://uniswap.org/docs/v2/core-concepts/swaps/) apply. |
-| deadline    | The trade execution deadline as `block.timestamp`, to protect the trader from transaction reordering delays.                                                                                     | `deadline` must be later than the time of trade, otherwise the transaction reverts.                       |
+It can only be called by the Vanilla DAO multisig, and is callable only if `block.timestamp` is less than `conversionDeadline`
 
-If the trade was successful, the [`TokensSold` event](#events) is emitted.
+### Approve Next Version
 
-This function is more gas-efficient way of selling if the trader has a need for the received WETH tokens instead of unwrapped Ether.
+```solidity
+function approveNextVersion(address implementation) external onlyOwner
+```
 
-#### VanillaRouter.sellAndWithdraw()
+This function is located in  `VanillaV1Safelist01` contract and:
+- will set the public `nextVersion` variable to `implementation`
 
-This function behaves similarly to [sell()](#vanillaroutersell) with equal function signature, but instead of transferring the WETHs back to `msg.sender` as-is, it withdraws the Ether from the WETH tokens and sends them to `msg.sender` receive/fallback function (with empty calldata).
+It can only be called by the Vanilla DAO multisig.
 
-`VanillaRouter.sellAndWithdraw()` is the easier way of selling tokens if the trader just needs the unwrapped Ether.
+## Profit mining
 
-### Read-only functions
+Profit mining state and logic is located in `VanillaV1Router02` contract.
 
-#### VanillaRouter.epoch()
+### Internal state
 
-Getter for `VanillaRouter.epoch`. Returns the `block.number` when the VanillaRouter was deployed.
+```solidity
+/// @dev data for calculating volume-weighted average prices, average purchasing block, and limiting trades per block
+struct PriceData {
+  uint256 weightedBlockSum; // for calculating Average purchasing block
+  uint112 ethSum; // for calculating volume-weighted average price
+  uint112 tokenSum; // for calculating averages and keeping track of position size
+  uint32 latestBlock; // verify the one-trade-per-block-per-token rule and protect against reentrancy
+}
+/// @notice Price data, indexed as [owner][token]
+mapping(address => mapping(address => PriceData)) public override tokenPriceData;
+```
 
-#### VanillaRouter.vnlContract()
+### Expected price
 
-Getter for `VanillaRouter.vnlContract`. Returns the address of the VanillaGovernanceToken that VanillaRouter owns.
+The expected price (i.e. the amount of Eth should closing the position generate to break-even) for a `trader`, when selling `numToken` of `token`s is calculated as:
 
-#### UniswapRouter.wethReserves(address token)
+```solidity
+PriceData position = tokenPriceData[trader][token];
+uint profitablePrice = numToken * position.ethSum / position.tokenSum;
+```
 
-Getter function for `UniswapRouter.wethReserves[token]`. Returns either:
+### Profit-mining price
 
-- 0 for non-safelisted token
-- [`VanillaRouter.reserveLimit()`](#vanillarouterreservelimit) for safelisted but untraded token, or
-- the internally tracked WETH reserve value for safelisted and traded token
+The price used in actual profit-mining formula is computed based on the Uniswap pool state and v3 price history length. Before closing/reducing the position, `VanillaV1Uniswap02` queries the pool for following information:
 
-#### UniswapRouter.isTokenRewarded(address token)
+- The oldest observation in the pool (which contains `blockTimestamp`)
+- The observation `period` which equals `Math.min(block.timestamp - oldestObservation.blockTimestamp, MAX_TWAP_PERIOD)` where `MAX_TWAP_PERIOD` is 300 seconds (or 5 minutes)
+- The time-weighted average ETH price - `expectedAvgEth` - from the target Uniswap pool for a period of `[0, period]`
 
-Returns true if token was included in the [safelist](#safelist).
 
-#### VanillaRouter.tokenPriceData(address owner, address token)
+Using the `period`, `expectedAvgEth`, the actual number of ETH received from the pool when selling the tokens (`numEth`), and the [expected price](#expected-price),  the profit-mining price is calculated as:
 
-Getter function for `tokenPriceData[owner][token]`. Returns the unwrapped `PriceData` struct.
+```solidity
+uint profitMiningPrice = Math.min(
+    numEth,
+    (expectedPrice * (MAX_TWAP_PERIOD - period) + expectedAvgEth * period) /
+        MAX_TWAP_PERIOD
+)
+```
 
-#### VanillaRouter.reserveLimit()
+This means that:
 
-Getter for `reserveLimit`. Returns the WETH reserve limit used in [value protection algorithm](#value-protection-coefficient).
+- Selling tokens in an Uniswap pool where `observationCardinality() == 1` will always result in `period == 0` and `profitMiningPrice == expectedPrice`, which effectively results in zero reward
+- Longer price observation history means smoother and harder-to-manipulate time-weighted average prices, so the algorithm can give larger weight to the TWAP price
 
-## Safety considerations
+### Profit-mining algorithm
 
-### Upgrades and contract ownership
-
-Vanilla contracts are _not_ upgradeable on purpose. This is more gas-efficient and safer for users. There is no privileged access of any kind. Future feature upgrades will be done using a migration mechanism.
-
-### Math
-
-Vanilla contracts use OpenZeppelin's [SafeMath.sol](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/math/SafeMath.sol) for safer uint-calculations.
-
-### Off-chain prices and limits
-
-Because the token amount- and limit- arguments in `VanillaRouter.buy` and `VanillaRouter.sell` are used as-is to make the swap, contract users **must** calculate all the amounts based on good off-chain price oracles. Failing to do so could lead to an unrecoverable loss of tokens. For example, if you call `VanillaRouter.sell` to sell all your tokens, but set `numEth` parameter accidentally too low, a front-runner can collect the price arbitrage for the user's loss.
-
-The limits in `buy` and `sell` work similarly as in Uniswap so read their [safety considerations](https://uniswap.org/docs/v2/smart-contract-integration/trading-from-a-smart-contract/#safety-considerations) before calling the VanillaRouter.
-
-Similarly, as noted in Uniswap v2 [audit report](https://uniswap.org/audit.html#orgbaba79b), using limits does not entirely protect users from front-runners and price manipulation, as setting limits too tightly increases the risk of a reverted swap.
-
-## Events
-
-VanillaRouter emits the following events after successful trading operations:
-
-1. `event TokensPurchased(address indexed buyer, address indexed token, uint256 eth, uint256 amount)`
-
-   - `buyer` is the new owner of tokens (the caller of the `buy`-function)
-   - `token` is the contract address of the token
-   - `eth` is the amount of Ether for purchasing `amount` tokens
-
-2. `event TokensSold(address indexed seller, address indexed token, uint256 amount, uint256 eth, uint256 profit, uint256 reward)`
-   - `seller` is the owner of tokens (the caller of the `sell`-function)
-   - `token` is the contract address of the token
-   - `amount` tokens were sold for `eth` amount of Ether, which was transferred to `seller`
-   - the `profit` is the [calculated profit](#profit) in Ether, and `reward` is the [calculated amount of VNL reward](#tokens) which was minted to the `seller`
+See [FAQ](https://vanilladefi.com/faq#how-are-profit-mining-rewards-calculated-for-trading).
