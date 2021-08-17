@@ -1,4 +1,4 @@
-# Vanilla Contracts v1
+# Vanilla Contracts v1.1
 
 This repository contains the core smart contracts for Vanilla. For documentation, see [the technical overview](contracts/README.md) of the contracts.
 
