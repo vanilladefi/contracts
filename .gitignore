@@ -9,6 +9,7 @@ deployments/localhost
 typechain
 coverage.json
 coverage
+*.log
 
 # Openzeppelin
 .openzeppelin
