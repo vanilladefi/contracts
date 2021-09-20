@@ -12,7 +12,7 @@
     "lint:sol": "prettier --check contracts/ && solhint --max-warnings 0 'contracts/**/*.sol'",
     "compile:sol": "pnpx hardhat compile --config hardhat.base.ts",
     "compile:clean:sol": "pnpx hardhat clean --config hardhat.base.ts && pnpx hardhat compile --config hardhat.base.ts",
-    "node:mainnet-fork": "pnpm run compile:clean:sol && FORK=mainnet pnpx hardhat node --verbose --fork-deployments mainnet --as-network localhost",
+    "node:mainnet-fork": "FORK=mainnet pnpx hardhat node --verbose --fork-deployments mainnet --as-network localhost",
     "deploy:goerli": "pnpm run compile:clean:sol && pnpx hardhat --network goerli deploy",
     "deploy:ropsten": "pnpm run compile:clean:sol && pnpx hardhat --network ropsten deploy",
     "deploy:rinkeby": "pnpm run compile:clean:sol && pnpx hardhat --network rinkeby deploy",
