@@ -13,11 +13,10 @@ COPY deploy ./deploy
 COPY deployments ./deployments
 COPY hardhat ./hardhat
 COPY test /home/node/app/test
-COPY .secrets.env /home/node/app/.secrets.env
 
 RUN chown node /home/node/app/*
 
-RUN apk add --update --no-cache g++ make python3 py3-pip bash git hidapi linux-headers eudev-dev openssh libusb-dev libusb curl && ln -sf python3 /usr/bin/python
+RUN apk add --update g++ make python3 py3-pip bash git hidapi linux-headers eudev-dev openssh libusb-dev libusb curl && ln -sf python3 /usr/bin/python && apk del build-dependencies
 RUN npm install -g pnpm
 
 USER node

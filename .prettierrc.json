@@ -1,4 +1,7 @@
 {
+  "semi": false,
+  "singleQuote": false,
+  "trailingComma": "all",
   "overrides": [
     {
       "files": "*.sol",
