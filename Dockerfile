@@ -16,7 +16,7 @@ COPY test /home/node/app/test
 
 RUN chown node /home/node/app/*
 
-RUN apk add --update g++ make python3 py3-pip bash git hidapi linux-headers eudev-dev openssh libusb-dev libusb curl && ln -sf python3 /usr/bin/python && apk del build-dependencies
+RUN apk add --update --virtual build-dependencies g++ make python3 py3-pip bash git hidapi linux-headers eudev-dev openssh libusb-dev libusb curl && ln -sf python3 /usr/bin/python
 RUN npm install -g pnpm
 
 USER node
@@ -27,6 +27,8 @@ RUN pip3 install --no-cache --upgrade pip setuptools
 USER root
 
 RUN pnpm install && pnpm run compile:sol && pnpm run generate:typechain
+
+RUN apk del build-dependencies
 
 EXPOSE 8545
 
