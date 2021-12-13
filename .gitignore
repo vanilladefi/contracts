@@ -6,7 +6,6 @@ test/contracts/*.json
 cache
 artifacts
 deployments/localhost
-typechain
 coverage.json
 coverage
 *.log
