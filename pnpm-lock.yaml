@@ -50,6 +50,7 @@ specifiers:
   keccak256: ^1.0.3
   merkletreejs: ^0.2.24
   mocha: ^9.0.3
+  pnpm: ^6.23.6
   prettier: ^2.3.2
   prettier-plugin-solidity: ^1.0.0-beta.17
   solc: ^0.8.4
@@ -79,10 +80,10 @@ devDependencies:
   '@ethersproject/providers': 5.4.5
   '@gnosis.pm/safe-core-sdk': 0.3.1
   '@gnosis.pm/safe-ethers-adapters': 0.1.0-alpha.3
-  '@ledgerhq/hw-app-eth': 6.7.0
-  '@nomiclabs/hardhat-ethers': /hardhat-deploy-ethers/0.3.0-beta.10_ethers@5.4.7+hardhat@2.6.4
-  '@nomiclabs/hardhat-etherscan': 2.1.6_hardhat@2.6.4
-  '@nomiclabs/hardhat-waffle': 2.0.1_eafd8a399d2ff3d19a6676666ea408e7
+  '@ledgerhq/hw-app-eth': 6.4.0
+  '@nomiclabs/hardhat-ethers': /hardhat-deploy-ethers/0.3.0-beta.10_ethers@5.4.4+hardhat@2.6.0
+  '@nomiclabs/hardhat-etherscan': 2.1.4_hardhat@2.6.0
+  '@nomiclabs/hardhat-waffle': 2.0.1_34ac1a3678d1b0f5dca0128fbe4d5952
   '@openzeppelin/cli': 2.8.2
   '@openzeppelin/upgrades-core': 1.9.2
   '@typechain/ethers-v5': 7.1.0_9aa7c2033e89f5e4c7f670ad9dee4d07
@@ -105,12 +106,13 @@ devDependencies:
   ethereum-waffle: 3.4.0_typescript@4.4.3
   ethers: 5.4.7
   fast-check: 2.17.0
-  hardhat: 2.6.4
-  hardhat-deploy: 0.7.11_aabd152b36edc085f5975d9e3c3a1a4c
-  hardhat-deploy-ethers: 0.3.0-beta.10_ethers@5.4.7+hardhat@2.6.4
-  mocha: 9.1.1
-  prettier: 2.4.1
-  prettier-plugin-solidity: 1.0.0-beta.18_prettier@2.4.1
+  hardhat: 2.6.0
+  hardhat-deploy: 0.7.11_35a81c5d54d86be276518d584799fa7a
+  hardhat-deploy-ethers: 0.3.0-beta.10_ethers@5.4.4+hardhat@2.6.0
+  mocha: 9.0.3
+  pnpm: 6.23.6
+  prettier: 2.3.2
+  prettier-plugin-solidity: 1.0.0-beta.17_prettier@2.3.2
   solc: 0.8.6
   solhint: 3.3.6
   solidity-coverage: 0.8.0-beta.0
@@ -1172,7 +1174,7 @@ packages:
       - supports-color
     dev: true
 
-  /@nomiclabs/hardhat-waffle/2.0.1_eafd8a399d2ff3d19a6676666ea408e7:
+  /@nomiclabs/hardhat-waffle/2.0.1_34ac1a3678d1b0f5dca0128fbe4d5952:
     resolution: {integrity: sha512-2YR2V5zTiztSH9n8BYWgtv3Q+EL0N5Ltm1PAr5z20uAY4SkkfylJ98CIqt18XFvxTD5x4K2wKBzddjV9ViDAZQ==}
     peerDependencies:
       '@nomiclabs/hardhat-ethers': ^2.0.0
@@ -8549,6 +8551,12 @@ packages:
     engines: {node: '>=4'}
     dependencies:
       find-up: 2.1.0
+    dev: true
+
+  /pnpm/6.23.6:
+    resolution: {integrity: sha512-H6PIzO4W2zg2Jqms13uS5U3fU8yBdWk8rXcpJLjs/in+nutgVA8GGlasEAI2eAiTpc9FYJUkCklbJ4a/M36N0w==}
+    engines: {node: '>=12.17'}
+    hasBin: true
     dev: true
 
   /posix-character-classes/0.1.1:

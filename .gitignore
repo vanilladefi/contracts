@@ -5,6 +5,7 @@ test/contracts/*.json
 # Hardhat files
 cache
 artifacts
+typechain
 deployments/localhost
 coverage.json
 coverage
