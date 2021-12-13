@@ -1,15 +1,19 @@
 import { LedgerSigner } from "@ethersproject/hardware-wallets"
-import { SafeEthersSigner, SafeService } from "@gnosis.pm/safe-ethers-adapters"
-import { getNetworkConfig } from "../network.config"
-import { Network } from "hardhat/types"
 import { Provider } from "@ethersproject/providers"
+import { SafeEthersSigner, SafeService } from "@gnosis.pm/safe-ethers-adapters"
+import { Network } from "hardhat/types"
+import { getNetworkConfig } from "../network.config"
 
-const wait = (milliSec: number) => new Promise(resolve => setTimeout(resolve, milliSec))
+const wait = (milliSec: number) =>
+  new Promise((resolve) => setTimeout(resolve, milliSec))
 
-const waitForLedger = async (signer: LedgerSigner, firstRun = true): Promise<string> => {
+const waitForLedger = async (
+  signer: LedgerSigner,
+  firstRun = true,
+): Promise<string> => {
   try {
     return await signer.getAddress()
-  } catch (err) {
+  } catch (err: any) {
     if (firstRun) {
       console.log("Connect the Ethereum app on ledger", `(${err.statusCode})`)
     }
@@ -17,7 +21,11 @@ const waitForLedger = async (signer: LedgerSigner, firstRun = true): Promise<str
   }
 }
 
-export const SafeLedgerSigner = async (provider: Provider, network: Network, type = "default"): Promise<SafeEthersSigner> => {
+export const SafeLedgerSigner = async (
+  provider: Provider,
+  network: Network,
+  type = "default",
+): Promise<SafeEthersSigner> => {
   let config = getNetworkConfig(network)
   if (!config || !config.gnosisTxService) {
     throw new Error(`Unsupported network ${network.name} for SafeLedgerSigner`)
@@ -34,6 +42,12 @@ export const SafeLedgerSigner = async (provider: Provider, network: Network, typ
   let signerAddress = await waitForLedger(signer, true)
   console.log(`Using signer ${signerAddress}`)
   let safeService = new SafeService(config.gnosisTxService)
-  let safeSigner = await SafeEthersSigner.create(config.multisigAddress, signer, safeService, provider, {})
+  let safeSigner = await SafeEthersSigner.create(
+    config.multisigAddress,
+    signer,
+    safeService,
+    provider,
+    {},
+  )
   return safeSigner
 }
