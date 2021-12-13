@@ -1,7 +1,8 @@
 {
   "name": "@vanilladefi/trade-contracts",
-  "version": "1.1.0",
+  "version": "1.1.2",
   "description": "Smart contracts for vanilladefi.com",
+  "type": "module",
   "scripts": {
     "prepare": "npx only-allow pnpm && pnpm run compile:sol && pnpm run generate:typechain",
     "test": "pnpx hardhat test",
