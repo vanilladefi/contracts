@@ -1,8 +1,8 @@
 {
   "name": "@vanilladefi/trade-contracts",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Smart contracts for vanilladefi.com",
-  "main": "./index.ts",
+  "main": "./typechain/vanilla_v1.1/index.ts",
   "type": "module",
   "scripts": {
     "postinstall": "npm run compile:sol & npm run generate:typechain",
