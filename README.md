@@ -2,29 +2,27 @@
 
 This repository contains the core smart contracts for Vanilla. For documentation, see [the technical overview](contracts/README.md) of the contracts.
 
-## Install PNPM
+## Install Yarn
 
-We use [pnpm](https://pnpm.io/) instead of npm. Use npm to install pnpm:
+We use [Yarn](https://yarnpkg.com/) instead of npm.
 
 ```shell
-npm install -g pnpm
+curl --compressed -o- -L https://yarnpkg.com/install.sh | bash
 ```
 
 ## Build and Test
 
 We use [Hardhat](https://hardhat.org/) as a build tool.
 
-To build, generate Typechain bindings, and run model tests:
+To build, `yarn install` (generates Typechain bindings), and run model tests:
 ```
-pnpm install
-pnpm run compile:sol
-pnpm run generate:typechain
-pnpm test
+yarn install
+yarn test
 ```
 
 To run coverage reports
 ```
-pnpm run coverage:sol
+yarn run coverage:sol
 ```
 
 ## Lint and reformat
@@ -33,14 +31,14 @@ We use [ESLint](https://eslint.org/) for JS/TS code and [Prettier](https://prett
 
 To run lint checks:
 ```
-pnpm run lint:js
-pnpm run lint:sol
+yarn run lint:js
+yarn run lint:sol
 ```
 
 To reformat / prettify:
 ```
-pnpm run format:js
-pnpm run format:sol
+yarn run format:js
+yarn run format:sol
 ```
 
 ## Deployment
