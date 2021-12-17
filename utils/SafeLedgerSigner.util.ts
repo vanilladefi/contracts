@@ -1,5 +1,6 @@
 import { LedgerSigner } from "@ethersproject/hardware-wallets"
 import { Provider } from "@ethersproject/providers"
+import Safe from "@gnosis.pm/safe-core-sdk"
 import { SafeEthersSigner, SafeService } from "@gnosis.pm/safe-ethers-adapters"
 import { Network } from "hardhat/types"
 import { getNetworkConfig } from "../network.config"
@@ -39,15 +40,13 @@ export const SafeLedgerSigner = async (
   console.log("Config", { ...config, privateKeys: undefined })
   const signer = new LedgerSigner(provider, type, config.hdPath)
   console.log("Initialize signer")
-  let signerAddress = await waitForLedger(signer, true)
+  const signerAddress = await waitForLedger(signer, true)
   console.log(`Using signer ${signerAddress}`)
-  let safeService = new SafeService(config.gnosisTxService)
-  let safeSigner = await SafeEthersSigner.create(
-    config.multisigAddress,
-    signer,
-    safeService,
-    provider,
-    {},
-  )
+  const safeService = new SafeService(config.gnosisTxService)
+  const safe = await Safe.create({
+    safeAddress: config.multisigAddress,
+    ethAdapter: signer as any,
+  })
+  const safeSigner = new SafeEthersSigner(safe, safeService, provider)
   return safeSigner
 }
