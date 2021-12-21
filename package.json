@@ -1,6 +1,6 @@
 {
   "name": "@vanilladefi/trade-contracts",
-  "version": "1.1.14",
+  "version": "1.1.15",
   "description": "Smart contracts for vanilladefi.com",
   "main": "./typechain/vanilla_v1.1/index.ts",
   "scripts": {
@@ -34,7 +34,9 @@
     "url": "https://github.com/vanilladefi/contracts"
   },
   "files": [
-    "artifacts/**/*"
+    "artifacts/**/*",
+    "hardhat.*.ts",
+    "network.*.ts"
   ],
   "devDependencies": {
     "@ethereum-waffle/chai": "^3.4.0",
