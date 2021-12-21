@@ -1,11 +1,10 @@
 {
   "name": "@vanilladefi/trade-contracts",
-  "version": "1.1.26",
+  "version": "1.1.27",
   "description": "Smart contracts for vanilladefi.com",
   "main": "./typechain/vanilla_v1.1/index.ts",
   "scripts": {
-    "prepack": "npm run compile:clean:sol",
-    "postinstall": "cd $INIT_CWD && npm run generate:typechain-wo-test",
+    "prepack": "npm run compile:clean:sol && npm run generate:typechain-wo-test",
     "test": "npm run generate:test-types && npx hardhat test",
     "format:js": "eslint --fix test/ utils/ hardhat/ deploy/",
     "format:sol": "prettier --write contracts/",
@@ -34,7 +33,8 @@
     "url": "https://github.com/vanilladefi/contracts"
   },
   "files": [
-    "artifacts/**/*"
+    "artifacts/**/*",
+    "typechain/**/*"
   ],
   "devDependencies": {
     "@ethereum-waffle/chai": "^3.4.0",
@@ -69,18 +69,7 @@
     "prettier-plugin-solidity": "^1.0.0-beta.17",
     "solc": "^0.8.4",
     "solhint": "^3.3.6",
-    "solidity-coverage": "^0.8.0-beta.0"
-  },
-  "resolutions": {
-    "@solidity-parser/parser": "^0.13.2"
-  },
-  "dependencies": {
-    "ethers": "^5.4.4",
-    "@ethersproject/abi": "^5.4.0",
-    "@ethersproject/bytes": "^5.4.0",
-    "@ethersproject/providers": "^5.4.3",
-    "ts-generator": "^0.1.1",
-    "@types/node": "^14.17.9",
+    "solidity-coverage": "^0.8.0-beta.0",
     "hardhat": "^2.6.0",
     "typechain": "^5.1.2",
     "ts-node": "^9.1.1",
@@ -93,6 +82,17 @@
     "@uniswap/v2-periphery": "1.1.0-beta.0",
     "@uniswap/v3-core": "1.0.0",
     "@uniswap/v3-periphery": "^1.1.1",
+    "ts-generator": "^0.1.1",
+    "@types/node": "^14.17.9"
+  },
+  "resolutions": {
+    "@solidity-parser/parser": "^0.13.2"
+  },
+  "dependencies": {
+    "ethers": "^5.4.4",
+    "@ethersproject/abi": "^5.4.0",
+    "@ethersproject/bytes": "^5.4.0",
+    "@ethersproject/providers": "^5.4.3",
     "graphql": "15.5.0",
     "graphql-request": "3.4.0",
     "keccak256": "^1.0.3",
