@@ -1,6 +1,6 @@
 {
   "name": "@vanilladefi/trade-contracts",
-  "version": "1.1.24",
+  "version": "1.1.25",
   "description": "Smart contracts for vanilladefi.com",
   "main": "./typechain/vanilla_v1.1/index.ts",
   "scripts": {
@@ -20,9 +20,9 @@
     "node:test-accounts": "npx hardhat test-accounts",
     "coverage:sol": "npx hardhat coverage --testfiles \"test/Trading.test.ts\"",
     "generate:typechain-wo-hardhat": "npx typechain --target ethers-v5 --out-dir typechain/vanilla_v1.1 \"./artifacts/contracts/**/+([a-zA-Z0-9_]).json\"",
-    "generate:univ2-types": "npx typechain --target ethers-v5 --out-dir typechain/uniswap_v2 \"$INIT_CWD/node_modules/@uniswap/v2-periphery/build/I*.json\"",
-    "generate:univ3-core-types": "npx typechain --target ethers-v5 --out-dir typechain/uniswap_v3_core \"$INIT_CWD/node_modules/@uniswap/v3-core/artifacts/**/*.json\"",
-    "generate:univ3-periphery-types": "npx typechain --target ethers-v5 --out-dir typechain/uniswap_v3_periphery \"$INIT_CWD/node_modules/@uniswap/v3-periphery/artifacts/**/*.json\"",
+    "generate:univ2-types": "npx typechain --target ethers-v5 --out-dir typechain/uniswap_v2 \"$PWD/node_modules/@uniswap/v2-periphery/build/I*.json\"",
+    "generate:univ3-core-types": "npx typechain --target ethers-v5 --out-dir typechain/uniswap_v3_core \"$PWD/node_modules/@uniswap/v3-core/artifacts/**/*.json\"",
+    "generate:univ3-periphery-types": "npx typechain --target ethers-v5 --out-dir typechain/uniswap_v3_periphery \"$PWD/node_modules/@uniswap/v3-periphery/artifacts/**/*.json\"",
     "generate:oz-types": "npx typechain --target ethers-v5 --out-dir typechain/openzeppelin \"./artifacts/@openzeppelin/**/+([a-zA-Z0-9_]).json\"",
     "generate:test-types": "npx typechain --target ethers-v5 --out-dir typechain/vanilla_test \"./test/v1-artifacts/**/*.json\"",
     "generate:typechain": "npm run generate:typechain-wo-hardhat && npm run generate:univ3-core-types && npm run generate:univ2-types && npm run generate:univ3-periphery-types && npm run generate:test-types && npm run generate:oz-types",
