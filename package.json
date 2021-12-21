@@ -1,11 +1,11 @@
 {
   "name": "@vanilladefi/trade-contracts",
-  "version": "1.1.15",
+  "version": "1.1.16",
   "description": "Smart contracts for vanilladefi.com",
   "main": "./typechain/vanilla_v1.1/index.ts",
   "scripts": {
     "prepare": "npm run compile:sol",
-    "postinstall": "npm run compile:sol && npm run generate:typechain-wo-test",
+    "postinstall": "npm run generate:typechain-wo-test",
     "test": "npm run generate:test-types && npx hardhat test",
     "format:js": "eslint --fix test/ utils/ hardhat/ deploy/",
     "format:sol": "prettier --write contracts/",
@@ -34,9 +34,7 @@
     "url": "https://github.com/vanilladefi/contracts"
   },
   "files": [
-    "artifacts/**/*",
-    "hardhat.*.ts",
-    "network.*.ts"
+    "artifacts/**/*"
   ],
   "devDependencies": {
     "@ethereum-waffle/chai": "^3.4.0",

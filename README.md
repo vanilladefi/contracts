@@ -14,9 +14,13 @@ curl --compressed -o- -L https://yarnpkg.com/install.sh | bash
 
 We use [Hardhat](https://hardhat.org/) as a build tool.
 
-To build, `yarn install` (generates Typechain bindings), and run model tests:
+On first `yarn install` the typechain generation will fail, as the contracts aren't built on `postinstall`. Just run
+
+To build, `yarn install`, build contracts with `yarn run compile:sol`,  generate Typechain bindings with `yarn run generate:typechain`, and run model tests:
 ```
 yarn install
+yarn run compile:sol
+yarn run generate:typechain
 yarn test
 ```
 
