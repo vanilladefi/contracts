@@ -1,14 +1,13 @@
 /* eslint-disable camelcase */
-import { Networks } from "./network.config"
-import { HardhatUserConfig } from "hardhat/config"
-
 import "@nomiclabs/hardhat-ethers"
+import "@nomiclabs/hardhat-etherscan"
 import "@nomiclabs/hardhat-waffle"
+import "@typechain/hardhat"
 import "hardhat-deploy"
 import "hardhat-deploy-ethers"
-import "@typechain/hardhat"
+import { HardhatUserConfig } from "hardhat/config"
 import "solidity-coverage"
-import "@nomiclabs/hardhat-etherscan"
+import { Networks } from "./network.config"
 
 let isMainnetFork = process.env.FORK === "mainnet"
 let localChainId = isMainnetFork ? 1 : 31337
